@@ -1,120 +1,101 @@
 <h1 align="center">
-  🛒 PDV Loja - Sistema de Ponto de Venda
+  🥩 PDV Churrascaria - Sistema de Gestão Desktop
 </h1>
 
 <p align="center">
-  <img alt="Java" src="https://img.shields.io/badge/Java-17%2B-orange?style=for-the-badge&logo=openjdk&logoColor=white" />
-  <img alt="Spring Boot" src="https://img.shields.io/badge/Spring_Boot-3.0-green?style=for-the-badge&logo=spring&logoColor=white" />
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" />
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-bx?style=for-the-badge" />
+  <img alt="Java" src="https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk&logoColor=white" />
+  <img alt="JavaFX" src="https://img.shields.io/badge/JavaFX-GUI-blue?style=for-the-badge&logo=java&logoColor=white" />
+  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-Database-003B57?style=for-the-badge&logo=sqlite&logoColor=white" />
+  <img alt="Maven" src="https://img.shields.io/badge/Maven-Build-C71A36?style=for-the-badge&logo=apachemaven&logoColor=white" />
 </p>
 
 <p align="center">
- <a href="#-sobre-o-projeto">Sobre</a> •
- <a href="#-funcionalidades">Funcionalidades</a> •
- <a href="#-fluxo-da-aplicação">Fluxo</a> •
- <a href="#-tecnologias">Tecnologias</a> •
- <a href="#-como-executar">Como Executar</a> •
- <a href="#-autor">Autor</a>
+  <a href="#-sobre-o-projeto">Sobre</a> •
+  <a href="#-funcionalidades">Funcionalidades</a> •
+  <a href="#-tecnologias">Tecnologias</a> •
+  <a href="#-banco-de-dados">Estrutura de Dados</a> •
+  <a href="#-autor">Autor</a>
 </p>
-
 
 ---
 
 ## 💻 Sobre o projeto
 
-O **PDV Loja** é uma API desenvolvida para simular a operação de um caixa de supermercado ou loja. O foco principal é o gerenciamento correto de valores monetários e o controle transacional de estoque.
+O **PDV Churrascaria** é uma solução Desktop robusta desenvolvida para atender as necessidades específicas de comércios que operam com venda por peso (KG) e unidade (UN).
 
-Este projeto é meu portfólio de estudos em Java, demonstrando a aplicação prática de conceitos de Engenharia de Software e arquitetura de sistemas.
+Diferente de sistemas web tradicionais, este projeto foca na **velocidade de operação** e **integração com hardware**. O sistema foi desenhado com foco em UX (Experiência do Usuário) para ser operado quase 100% via teclado numérico, agilizando o fluxo em horários de pico.
+
+Além da venda, o sistema oferece um controle financeiro rigoroso com gestão de sessões de caixa (Abertura, Sangria e Fechamento).
 
 ---
 
 ## ⚙️ Funcionalidades
 
-### 📦 Estoque & Produtos
-- ✅ **CRUD Completo:** Cadastro, leitura, atualização e remoção de produtos.
-- 📉 **Baixa Automática:** O estoque é descontado automaticamente ao finalizar uma venda.
-- 🚫 **Bloqueio de Venda:** O sistema impede vendas se o estoque for insuficiente.
+### 🛒 Frente de Caixa (PDV)
+- **Venda Híbrida:** Suporte fluido para itens pesáveis (ex: Picanha 0,500kg) e unitários (ex: Bebidas).
+- **Smart Input:** Máscaras automáticas de valores e pesos (digite `1200` e o sistema entende `1,200 kg`).
+- **Numpad Only:** Atalhos de teclado (`+`, `-`, `/`, `Enter`) permitindo operação completa apenas com a mão direita.
+- **Cupom Visual:** Geração de pré-visualização de recibo térmico ("Amarelinho") na tela para conferência.
 
-### 💰 Vendas & Caixa
-- 🛒 **Carrinho de Compras:** Adição dinâmica de itens.
-- 🧮 **Cálculos Precisos:** Uso de `BigDecimal` para garantir que R$ 0,10 + R$ 0,20 seja exatamente R$ 0,30.
-- 🧾 **Histórico:** Consulta de vendas realizadas e seus detalhes.
+### 💰 Gestão Financeira
+- **Controle de Sessão:** O sistema obriga a abertura de caixa com fundo de troco (suprimento).
+- **Múltiplos Pagamentos:** Uma única venda pode ser paga com Dinheiro + Pix + Cartão.
+- **Fechamento Cego:** O operador informa a contagem da gaveta e o sistema aponta sobras ou quebras de caixa automaticamente.
+- **Auditoria:** Histórico completo de fechamentos passados e detalhamento de vendas.
 
----
-
-## 🔄 Fluxo da Aplicação
-
-Como a aplicação é focada no Back-end, este é o fluxo lógico dos dados:
-
-```mermaid
-graph LR
-    A[👤 Cliente] -->|Escolhe Itens| B(🛒 Carrinho)
-    B -->|Checkout| C{🏧 Sistema PDV}
-    C -->|Verifica Estoque| D[(🗄️ Banco de Dados)]
-    D -->|Estoque OK?| C
-    C -->|Confirma Venda| E[🧾 Nota Fiscal Gerada]
-    C -->|Atualiza Saldo| D
-```
-
-Ou, simplificando o processo via API:
-
-1.  🆕 **Produto Criado** ( `POST /produtos` )
-2.  🛍️ **Venda Iniciada** ( `POST /vendas` )
-3.  ➕ **Item Adicionado** ( `POST /vendas/{id}/itens` )
-4.  ✅ **Venda Finalizada** ( `PATCH /vendas/{id}/finalizar` )
+### 📦 Back Office
+- **CRUD de Produtos:** Cadastro completo com controle de estoque e precificação.
+- **Relatórios:** Dashboard com totalizadores do dia (faturamento bruto e por tipo de pagamento).
 
 ---
 
-## 🛠 Tecnologias
+## 🛠 Tecnologias Utilizadas
 
-As ferramentas escolhidas para construir uma base sólida:
-
-- **☕ Java 17** - Linguagem moderna e robusta.
-- **🍃 Spring Boot 3** - Para agilidade e configuração automática.
-- **💾 Spring Data JPA** - Abstração para o acesso a dados.
-- **🐘 PostgreSQL** (ou H2 em memória) - Banco de dados relacional.
-- **🔒 Validation** - Para garantir que dados inválidos não entrem no sistema.
+- **Java 21 LTS:** Utilizando recursos modernos da linguagem.
+- **JavaFX:** Para construção de uma interface gráfica rica, responsiva e nativa.
+- **SQLite:** Banco de dados relacional embarcado (serverless), ideal para aplicações locais sem necessidade de instalação complexa.
+- **JDBC:** Controle manual de transações e conexões para máxima performance.
+- **Maven:** Gerenciamento de dependências e build.
+- **Lombok:** Redução de boilerplate code.
 
 ---
 
-## 🧠 O que eu aprendi
+## 🗄️ Banco de Dados
 
-Construir este PDV me ajudou a fixar conceitos importantes:
+O sistema utiliza um modelo relacional robusto para garantir a integridade financeira:
 
-* 🎯 **Precisão Decimal:** Entendi na prática por que nunca usar `double` para dinheiro e sim `BigDecimal`.
-* 🏗️ **Arquitetura em Camadas:** Separação clara entre Controller, Service e Repository.
-* 🛡️ **Tratamento de Erros:** Como devolver mensagens claras (HTTP 400/404) quando o cliente tenta comprar algo que não existe.
-* 📦 **DTOs:** Protegendo a entidade de banco e expondo apenas o necessário na API.
+* **`caixas`**: Controla as sessões (Abertura/Fechamento, Saldo Inicial/Final).
+* **`vendas`**: Cabeçalho da transação, vinculada a um Caixa e a um Usuário.
+* **`itens_venda`**: Produtos, quantidades e valor histórico do momento da venda.
+* **`pagamentos_venda`**: Permite N formas de pagamento para uma única venda (Normalização financeira).
+* **`produtos`** e **`usuarios`**: Cadastros base.
+
+> **Destaque:** O sistema possui um mecanismo de **Auto-Migration**. Ao iniciar, ele verifica a estrutura do banco SQLite e cria/atualiza as tabelas automaticamente se necessário.
 
 ---
 
 ## 🚀 Como executar
 
 ### Pré-requisitos
-* Java 17 instalado
-* Maven instalado
-* Git instalado
+* Java 21 JDK instalado.
+* Maven instalado.
 
-### Passo a passo
+### Passos
 
 ```bash
 # 1. Clone o repositório
-$ git clone https://github.com/jcarloscarmo/pdv-loja.git
+$ git clone [https://github.com/jcarloscarmo/pdv-churrascaria.git](https://github.com/jcarloscarmo/pdv-churrascaria.git)
 
-# 2. Entre na pasta do projeto
-$ cd pdv-loja
+# 2. Acesse a pasta
+$ cd pdv-churrascaria
 
-# 3. Instale as dependências e faça o build
+# 3. Instale as dependências
 $ mvn clean install
 
 # 4. Execute a aplicação
-$ mvn spring-boot:run
-```
+$ mvn javafx:run
 
-O servidor iniciará na porta: `8080` (http://localhost:8080)
-
----
+Nota: O arquivo pdv.db será criado automaticamente na raiz do projeto na primeira execução.
 
 ## 👨‍💻 Autor
 
