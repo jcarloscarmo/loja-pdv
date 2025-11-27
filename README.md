@@ -3,9 +3,19 @@
 </h1>
 
 <p align="center">
-  <img alt="Java" src="[https://img.shields.io/badge/Java-17%2B-orange?style=for-the-badge&logo=java&logoColor=white](https://img.shields.io/badge/Java-17%2B-orange?style=for-the-badge&logo=java&logoColor=white)" />
-  <img alt="Spring Boot" src="[https://img.shields.io/badge/Spring_Boot-3.0-green?style=for-the-badge&logo=spring&logoColor=white](https://img.shields.io/badge/Spring_Boot-3.0-green?style=for-the-badge&logo=spring&logoColor=white)" />
-  <img alt="PostgreSQL" src="[https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)" />
+  <img alt="Java" src="https://img.shields.io/badge/Java-17%2B-orange?style=for-the-badge&logo=openjdk&logoColor=white" />
+  <img alt="Spring Boot" src="https://img.shields.io/badge/Spring_Boot-3.0-green?style=for-the-badge&logo=spring&logoColor=white" />
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" />
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-bx?style=for-the-badge" />
+</p>
+
+<p align="center">
+ <a href="#-sobre-o-projeto">Sobre</a> •
+ <a href="#-funcionalidades">Funcionalidades</a> •
+ <a href="#-fluxo-da-aplicação">Fluxo</a> •
+ <a href="#-tecnologias">Tecnologias</a> •
+ <a href="#-como-executar">Como Executar</a> •
+ <a href="#-autor">Autor</a>
 </p>
 
 <p align="center">
@@ -116,19 +126,8 @@ O servidor iniciará na porta: `8080` (http://localhost:8080)
 
 ## 👨‍💻 Autor
 
-<div align="center">
-  <img style="border-radius: 50%;" src="[https://github.com/jcarloscarmo.png](https://github.com/jcarloscarmo.png)" width="100px;" alt="Foto de Perfil José Carlos"/>
-  <br />
-  <sub><b>José Carlos</b></sub>
-  <br />
-  
-  <a href="[https://github.com/jcarloscarmo](https://github.com/jcarloscarmo)" title="GitHub">
-    <img src="[https://img.shields.io/badge/-GitHub-black?style=flat-square&logo=github](https://img.shields.io/badge/-GitHub-black?style=flat-square&logo=github)" />
-  </a>
-  <a href="[https://www.linkedin.com/in/jcarloscarmo](https://www.linkedin.com/in/jcarloscarmo)" title="LinkedIn">
-    <img src="[https://img.shields.io/badge/-LinkedIn-blue?style=flat-square&logo=linkedin](https://img.shields.io/badge/-LinkedIn-blue?style=flat-square&logo=linkedin)" />
-  </a>
-  
-  <br />
-  👋 Feito com carinho para estudos! Entre em contato!
-</div>
+<div align="center"> <img style="border-radius: 50%;" src="https://github.com/jcarloscarmo.png" width="100px;" alt="Foto de Perfil José Carlos"/> <br /> <sub><b>José Carlos</b></sub> <br /> <br />
+
+<a href="https://github.com/jcarloscarmo" title="GitHub"> <img src="https://img.shields.io/badge/-GitHub-black?style=flat-square&logo=github" /> </a> <a href="https://www.linkedin.com/in/jcarloscarmo" title="LinkedIn"> <img src="https://img.shields.io/badge/-LinkedIn-blue?style=flat-square&logo=linkedin" /> </a>
+
+<br /> <br /> 👋 Feito com carinho para estudos! Entre em contato! </div>
