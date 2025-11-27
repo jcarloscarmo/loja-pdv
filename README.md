@@ -96,6 +96,7 @@ $ mvn clean install
 $ mvn javafx:run
 
 Nota: O arquivo pdv.db será criado automaticamente na raiz do projeto na primeira execução.
+```
 
 ## 👨‍💻 Autor
 
