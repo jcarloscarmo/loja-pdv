@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.churrasco.controller.MenuController"
+      alignment="CENTER" spacing="30" style="-fx-background-color: #2c3e50; -fx-padding: 40;" prefWidth="800" prefHeight="600">
+
+    <Label text="SISTEMA CHURRASCARIA" textFill="WHITE">
+        <font><Font name="System Bold" size="36.0"/></font>
+    </Label>
+
+    <Separator maxWidth="400"/>
+
+    <HBox spacing="20" alignment="CENTER">
+        <Button text="INICIAR CAIXA (PDV)" onAction="#abrirPDV"
+                prefWidth="250" prefHeight="150"
+                style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 20px; -fx-font-weight: bold; -fx-cursor: hand;"/>
+
+        <Button text="GERENCIAR PRODUTOS" onAction="#abrirProdutos"
+                prefWidth="250" prefHeight="150"
+                style="-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-size: 20px; -fx-font-weight: bold; -fx-cursor: hand;"/>
+    </HBox>
+
+    <Button text="Relatórios / Fechamento" onAction="#abrirRelatorios"
+            prefWidth="520" prefHeight="60"
+            style="-fx-background-color: #7f8c8d; -fx-text-fill: white; -fx-font-size: 16px;"/>
+
+    <Button text="AUDITORIA DE CAIXAS (HISTÓRICO)" onAction="#abrirHistoricoCaixas"
+            prefWidth="520" prefHeight="60"
+            style="-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold; -fx-cursor: hand;"/>
+
+    <Label text="Versão 1.0" textFill="#95a5a6"/>
+
+</VBox>

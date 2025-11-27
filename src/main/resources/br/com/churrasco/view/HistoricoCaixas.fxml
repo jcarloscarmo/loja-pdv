@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="br.com.churrasco.controller.HistoricoCaixasController"
+            prefHeight="600.0" prefWidth="900.0">
+
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="20" style="-fx-background-color: #2c3e50; -fx-padding: 15;">
+            <Button text="VOLTAR" onAction="#voltarMenu" style="-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-weight: bold;"/>
+            <Label text="HISTÓRICO DE CAIXAS" textFill="WHITE">
+                <font><Font name="System Bold" size="24.0"/></font>
+            </Label>
+        </HBox>
+    </top>
+
+    <center>
+        <VBox style="-fx-padding: 20;" spacing="10">
+            <Label text="Auditoria de Fechamentos (Do mais recente para o antigo)" textFill="#7f8c8d">
+                <font><Font size="14"/></font>
+            </Label>
+
+            <TableView fx:id="tabelaHistorico" VBox.vgrow="ALWAYS" style="-fx-font-size: 14px;">
+                <columns>
+                    <TableColumn fx:id="colId" text="ID" prefWidth="50" style="-fx-alignment: CENTER;"/>
+                    <TableColumn fx:id="colAbertura" text="Abertura" prefWidth="150" style="-fx-alignment: CENTER;"/>
+                    <TableColumn fx:id="colFechamento" text="Fechamento" prefWidth="150" style="-fx-alignment: CENTER;"/>
+                    <TableColumn fx:id="colStatus" text="Status" prefWidth="100" style="-fx-alignment: CENTER; -fx-font-weight: bold;"/>
+
+                    <TableColumn fx:id="colSaldoInicial" text="Fundo Troco" prefWidth="120" style="-fx-alignment: CENTER-RIGHT;"/>
+                    <TableColumn fx:id="colSaldoSistema" text="Esperado (Sist)" prefWidth="120" style="-fx-alignment: CENTER-RIGHT;"/>
+                    <TableColumn fx:id="colSaldoInformado" text="Contado (Real)" prefWidth="120" style="-fx-alignment: CENTER-RIGHT;"/>
+
+                    <TableColumn fx:id="colDiferenca" text="DIFERENÇA" prefWidth="120" style="-fx-alignment: CENTER-RIGHT; -fx-font-weight: bold;"/>
+                </columns>
+                <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/></columnResizePolicy>
+            </TableView>
+        </VBox>
+    </center>
+</BorderPane>
