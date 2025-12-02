@@ -32,6 +32,14 @@
             prefWidth="520" prefHeight="60"
             style="-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold; -fx-cursor: hand;"/>
 
+    <!-- Botão Configurações -->
+    <Button text="CONFIGURAÇÕES / HARDWARE" onAction="#abrirConfiguracoes"
+            prefWidth="520" prefHeight="60"
+            style="-fx-background-color: #34495e; -fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold; -fx-cursor: hand;"/>
+
+    <Button text="RANKING DE PRODUTOS VENDIDOS" onAction="#abrirRankingProdutos"
+            prefWidth="520" prefHeight="60"
+            style="-fx-background-color: #8e44ad; -fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold; -fx-cursor: hand;"/>
     <Label text="Versão 1.0" textFill="#95a5a6"/>
 
 </VBox>

@@ -1,14 +1,16 @@
 package br.com.churrasco.controller;
 
 import br.com.churrasco.dao.CaixaDAO;
-import br.com.churrasco.dao.VendaDAO; // Importante para pegar totais de cartao/pix
+import br.com.churrasco.dao.VendaDAO;
 import br.com.churrasco.model.Caixa;
+import br.com.churrasco.service.ImpressoraService;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.stage.Modality;
@@ -24,8 +26,9 @@ public class CaixaController {
     @FXML private Label lblSaldoSistema;
     @FXML private Label lblDiferenca;
 
-    private CaixaDAO caixaDAO = new CaixaDAO();
-    private VendaDAO vendaDAO = new VendaDAO(); // Para buscar totais de outras formas
+    private final CaixaDAO caixaDAO = new CaixaDAO();
+    private final VendaDAO vendaDAO = new VendaDAO();
+    private final ImpressoraService impressoraService = new ImpressoraService();
 
     private boolean confirmado = false;
     private Caixa caixaAberto;
@@ -35,7 +38,7 @@ public class CaixaController {
         configurarMascaraDinheiro();
     }
 
-    // --- MASCARA IGUAL DO PDV ---
+    // --- MASCARA TIPO CAIXA ELETRÔNICO ---
     private void configurarMascaraDinheiro() {
         if(txtValor == null) return;
         txtValor.textProperty().addListener((observable, oldValue, newValue) -> {
@@ -61,7 +64,7 @@ public class CaixaController {
             this.confirmado = true;
             fecharJanela();
         } catch (Exception e) {
-            mostrarAlerta("Valor inválido!");
+            mostrarAlerta("Valor inválido: " + e.getMessage());
         }
     }
 
@@ -70,7 +73,7 @@ public class CaixaController {
         this.caixaAberto = caixaDAO.buscarCaixaAberto();
         if (caixaAberto == null) return;
 
-        // Calcula quanto deve ter de DINHEIRO FÍSICO
+        // Calcula quanto deve ter de DINHEIRO FÍSICO (Saldo Inicial + Vendas em Dinheiro)
         double vendasDinheiro = caixaDAO.calcularSaldoDinheiroSistema(caixaAberto.getId());
         double totalEsperadoNaGaveta = caixaAberto.getSaldoInicial() + vendasDinheiro;
 
@@ -78,7 +81,7 @@ public class CaixaController {
 
         lblSaldoSistema.setText(String.format("R$ %.2f", totalEsperadoNaGaveta));
 
-        // Listener para atualizar a diferença enquanto digita (agora com a máscara)
+        // Listener para atualizar a diferença visualmente enquanto digita
         txtValor.textProperty().addListener((obs, old, novo) -> atualizarDiferenca(totalEsperadoNaGaveta));
 
         Platform.runLater(() -> txtValor.requestFocus());
@@ -93,7 +96,7 @@ public class CaixaController {
 
             if (dif < -0.01) lblDiferenca.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
             else if (dif > 0.01) lblDiferenca.setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
-            else lblDiferenca.setStyle("-fx-text-fill: #2ecc71; -fx-font-weight: bold;"); // Verde se bater
+            else lblDiferenca.setStyle("-fx-text-fill: #2ecc71; -fx-font-weight: bold;"); // Verde se bater (Zero)
 
         } catch (Exception e) {}
     }
@@ -105,10 +108,20 @@ public class CaixaController {
             double esperado = caixaAberto.getSaldoFinal();
             double diferenca = informado - esperado;
 
-            // 1. Fecha no Banco
+            // 1. Fecha no Banco de Dados
             caixaDAO.fecharCaixa(caixaAberto.getId(), esperado, informado, diferenca);
 
-            // 2. Mostra o Relatório de Fechamento (Amarelinho)
+            // Atualiza objeto local para uso nos relatórios
+            caixaAberto.setSaldoInformado(informado);
+            caixaAberto.setDiferenca(diferenca);
+
+            // 2. Pergunta se quer IMPRIMIR
+            Alert printAlert = new Alert(Alert.AlertType.CONFIRMATION, "Caixa Fechado! Deseja imprimir o comprovante?", ButtonType.YES, ButtonType.NO);
+            if (printAlert.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
+                imprimirFechamento();
+            }
+
+            // 3. Mostra o Relatório Visual na Tela (Amarelinho)
             exibirRelatorioFinal(informado, diferenca);
 
             this.confirmado = true;
@@ -120,14 +133,28 @@ public class CaixaController {
         }
     }
 
+    private void imprimirFechamento() {
+        // Busca dados para impressão
+        // Nota: usamos a data de abertura do caixa para filtrar as vendas (caso esteja fechando um caixa de ontem)
+        LocalDate dataCaixa = caixaAberto.getDataAbertura().toLocalDate();
+
+        double tDin = caixaDAO.calcularSaldoDinheiroSistema(caixaAberto.getId());
+        double tPix = vendaDAO.buscarTotalPorTipo(dataCaixa, "PIX");
+        double tDeb = vendaDAO.buscarTotalPorTipo(dataCaixa, "DÉBITO");
+        double tCre = vendaDAO.buscarTotalPorTipo(dataCaixa, "CRÉDITO");
+
+        new Thread(() -> {
+            impressoraService.imprimirRelatorioFechamento(caixaAberto, tDin, tPix, tDeb, tCre);
+        }).start();
+    }
+
     private void exibirRelatorioFinal(double informado, double diferenca) {
         try {
-            // Busca totais de Cartão e Pix para o relatório completo
-            // Nota: Buscamos do dia atual, assumindo que o caixa é diário
-            LocalDate hoje = LocalDate.now();
-            double tPix = vendaDAO.buscarTotalPorTipo(hoje, "PIX");
-            double tDeb = vendaDAO.buscarTotalPorTipo(hoje, "DÉBITO");
-            double tCre = vendaDAO.buscarTotalPorTipo(hoje, "CRÉDITO");
+            // Busca dados para o visual
+            LocalDate dataCaixa = caixaAberto.getDataAbertura().toLocalDate();
+            double tPix = vendaDAO.buscarTotalPorTipo(dataCaixa, "PIX");
+            double tDeb = vendaDAO.buscarTotalPorTipo(dataCaixa, "DÉBITO");
+            double tCre = vendaDAO.buscarTotalPorTipo(dataCaixa, "CRÉDITO");
             double tDinVendas = caixaDAO.calcularSaldoDinheiroSistema(caixaAberto.getId());
 
             StringBuilder sb = new StringBuilder();
@@ -156,7 +183,7 @@ public class CaixaController {
             Parent root = loader.load();
             ConfirmacaoController controller = loader.getController();
             controller.setTextoCupom(sb.toString());
-            controller.ativarModoLeitura(); // Só visualização
+            controller.ativarModoLeitura(); // Bloqueia botões de ação
 
             Stage stage = new Stage();
             stage.setScene(new Scene(root));
