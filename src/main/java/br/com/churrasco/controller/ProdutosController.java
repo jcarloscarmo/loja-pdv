@@ -18,6 +18,10 @@ public class ProdutosController {
 
     @FXML private TextField txtCodigo;
     @FXML private TextField txtNome;
+
+    // --- NOVO CAMPO DE CUSTO ---
+    @FXML private TextField txtCusto;
+
     @FXML private TextField txtPreco;
     @FXML private TextField txtEstoque;
     @FXML private ComboBox<String> comboUnidade;
@@ -31,7 +35,7 @@ public class ProdutosController {
 
     private ProdutoDAO produtoDAO = new ProdutoDAO();
     private ObservableList<Produto> listaProdutos = FXCollections.observableArrayList();
-    private Produto produtoSelecionado = null; // Para controlar Edição
+    private Produto produtoSelecionado = null;
 
     @FXML
     public void initialize() {
@@ -41,7 +45,6 @@ public class ProdutosController {
         comboUnidade.getItems().addAll("KG", "UN");
         comboUnidade.getSelectionModel().selectFirst();
 
-        // Evento: Ao clicar na tabela, preenche o formulário para editar
         tabelaProdutos.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
                 preencherFormulario(newVal);
@@ -52,7 +55,7 @@ public class ProdutosController {
     private void configurarTabela() {
         colCodigo.setCellValueFactory(new PropertyValueFactory<>("codigo"));
         colNome.setCellValueFactory(new PropertyValueFactory<>("nome"));
-        colPreco.setCellValueFactory(new PropertyValueFactory<>("precoVenda")); // Atenção aqui: nome exato do atributo no Model
+        colPreco.setCellValueFactory(new PropertyValueFactory<>("precoVenda"));
         colUnidade.setCellValueFactory(new PropertyValueFactory<>("unidade"));
         colEstoque.setCellValueFactory(new PropertyValueFactory<>("estoque"));
 
@@ -69,37 +72,47 @@ public class ProdutosController {
         try {
             // Validações básicas
             if (txtCodigo.getText().isEmpty() || txtNome.getText().isEmpty() || txtPreco.getText().isEmpty()) {
-                mostrarAlerta("Preencha os campos obrigatórios!");
+                mostrarAlerta("Preencha os campos obrigatórios (Código, Nome e Preço Venda)!");
                 return;
             }
 
             String codigo = txtCodigo.getText();
             String nome = txtNome.getText();
-            double preco = Double.parseDouble(txtPreco.getText().replace(",", "."));
+            double precoVenda = Double.parseDouble(txtPreco.getText().replace(",", "."));
             double estoque = Double.parseDouble(txtEstoque.getText().replace(",", "."));
+
+            // --- LÓGICA DO CUSTO ---
+            double precoCusto = 0.0;
+            if (txtCusto != null && !txtCusto.getText().isEmpty()) {
+                precoCusto = Double.parseDouble(txtCusto.getText().replace(",", "."));
+            }
+
             String unidade = comboUnidade.getValue();
 
             if (produtoSelecionado == null) {
                 // MODO: NOVO PRODUTO
-                Produto novo = new Produto(null, codigo, nome, 0.0, preco, unidade, estoque);
+                // Passando o precoCusto corretamente agora
+                Produto novo = new Produto(null, codigo, nome, precoCusto, precoVenda, unidade, estoque);
                 produtoDAO.salvar(novo);
             } else {
                 // MODO: EDITAR PRODUTO EXISTENTE
                 produtoSelecionado.setCodigo(codigo);
                 produtoSelecionado.setNome(nome);
-                produtoSelecionado.setPrecoVenda(preco);
+                produtoSelecionado.setPrecoCusto(precoCusto); // Atualiza custo
+                produtoSelecionado.setPrecoVenda(precoVenda);
                 produtoSelecionado.setUnidade(unidade);
                 produtoSelecionado.setEstoque(estoque);
                 produtoDAO.atualizar(produtoSelecionado);
             }
 
             limparCampos();
-            carregarDados(); // Recarrega a tabela
+            carregarDados();
 
         } catch (NumberFormatException e) {
             mostrarAlerta("Preço ou Estoque inválidos! Use números.");
         } catch (Exception e) {
             mostrarAlerta("Erro ao salvar: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -127,9 +140,10 @@ public class ProdutosController {
         txtCodigo.setText("");
         txtNome.setText("");
         txtPreco.setText("");
+        if(txtCusto != null) txtCusto.setText(""); // Limpa o custo
         txtEstoque.setText("0");
         comboUnidade.getSelectionModel().selectFirst();
-        produtoSelecionado = null; // Sai do modo de edição
+        produtoSelecionado = null;
         tabelaProdutos.getSelectionModel().clearSelection();
     }
 
@@ -138,6 +152,14 @@ public class ProdutosController {
         txtCodigo.setText(p.getCodigo());
         txtNome.setText(p.getNome());
         txtPreco.setText(String.valueOf(p.getPrecoVenda()));
+
+        // Preenche o custo (se for null no banco, poe zero)
+        if (p.getPrecoCusto() != null) {
+            if(txtCusto != null) txtCusto.setText(String.valueOf(p.getPrecoCusto()));
+        } else {
+            if(txtCusto != null) txtCusto.setText("0.0");
+        }
+
         txtEstoque.setText(String.valueOf(p.getEstoque()));
         comboUnidade.setValue(p.getUnidade());
     }

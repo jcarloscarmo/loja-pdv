@@ -28,6 +28,9 @@
             <Label text="Nome do Produto"/>
             <TextField fx:id="txtNome" promptText="Ex: Picanha"/>
 
+            <Label text="Preço de Custo (R$)"/>
+            <TextField fx:id="txtCusto" promptText="0.00"/>
+
             <HBox spacing="10">
                 <VBox HBox.hgrow="ALWAYS">
                     <Label text="Preço Venda (R$)"/>
@@ -42,11 +45,13 @@
             <Label text="Estoque Inicial"/>
             <TextField fx:id="txtEstoque" text="0"/>
 
-            <Region VBox.vgrow="ALWAYS"/> <HBox spacing="10">
-            <Button text="LIMPAR" onAction="#limparCampos" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
-            <Button text="SALVAR" onAction="#salvarProduto" maxWidth="Infinity" HBox.hgrow="ALWAYS"
-                    style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold;"/>
-        </HBox>
+            <Region VBox.vgrow="ALWAYS"/>
+
+            <HBox spacing="10">
+                <Button text="LIMPAR" onAction="#limparCampos" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
+                <Button text="SALVAR" onAction="#salvarProduto" maxWidth="Infinity" HBox.hgrow="ALWAYS"
+                        style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold;"/>
+            </HBox>
 
             <Button text="EXCLUIR SELECIONADO" onAction="#excluirProduto" maxWidth="Infinity"
                     style="-fx-background-color: #c0392b; -fx-text-fill: white;"/>
@@ -58,7 +63,7 @@
             <columns>
                 <TableColumn fx:id="colCodigo" text="Cód" prefWidth="60"/>
                 <TableColumn fx:id="colNome" text="Nome" prefWidth="250"/>
-                <TableColumn fx:id="colPreco" text="Preço" prefWidth="100"/>
+                <TableColumn fx:id="colPreco" text="Preço Venda" prefWidth="100"/>
                 <TableColumn fx:id="colUnidade" text="Un." prefWidth="50"/>
                 <TableColumn fx:id="colEstoque" text="Estoque" prefWidth="80"/>
             </columns>

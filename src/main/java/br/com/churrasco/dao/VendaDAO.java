@@ -1,6 +1,7 @@
 package br.com.churrasco.dao;
 
-import br.com.churrasco.model.Caixa; // Importante
+import br.com.churrasco.model.Caixa;
+import br.com.churrasco.model.Encomenda;
 import br.com.churrasco.model.ItemVenda;
 import br.com.churrasco.model.Pagamento;
 import br.com.churrasco.model.Produto;
@@ -8,70 +9,73 @@ import br.com.churrasco.model.Venda;
 import br.com.churrasco.util.DatabaseConnection;
 
 import java.sql.*;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 public class VendaDAO {
 
-    private CaixaDAO caixaDAO = new CaixaDAO(); // Necessário para vincular a venda ao caixa
+    private CaixaDAO caixaDAO = new CaixaDAO();
 
-    // --- 1. SALVAR VENDA (Com Vínculo de Caixa) ---
+    // --- 1. SALVAR VENDA (Finalização Normal) ---
     public int salvarVenda(Venda venda, List<ItemVenda> itens, List<Pagamento> pagamentos) throws SQLException {
+        // SQLs
+        String sqlVenda = "INSERT INTO vendas (id, data_hora, valor_total, forma_pagamento, usuario_id, caixa_id) VALUES (?, ?, ?, ?, ?, ?)";
 
-        // SQL atualizado com caixa_id
-        String sqlVenda = "INSERT INTO vendas (data_hora, valor_total, forma_pagamento, usuario_id, caixa_id) VALUES (?, ?, ?, ?, ?)";
+        // ATUALIZADO: Adicionada a coluna custo_unitario
+        String sqlItem = "INSERT INTO itens_venda (venda_id, produto_id, quantidade, valor_unitario, total_item, custo_unitario) VALUES (?, ?, ?, ?, ?, ?)";
 
-        String sqlItem = "INSERT INTO itens_venda (venda_id, produto_id, quantidade, valor_unitario, total_item) VALUES (?, ?, ?, ?, ?)";
         String sqlPagamento = "INSERT INTO pagamentos_venda (venda_id, tipo, valor) VALUES (?, ?, ?)";
         String sqlUpdateEstoque = "UPDATE produtos SET estoque = estoque - ? WHERE id = ?";
 
         Connection conn = null;
-        int vendaIdGerado = 0;
+        int vendaIdParaSalvar = 0;
 
         try {
             conn = DatabaseConnection.getConnection();
-            conn.setAutoCommit(false); // Inicia a transação
+            conn.setAutoCommit(false); // INÍCIO DA TRANSAÇÃO
 
-            // 0. Descobrir qual Caixa está aberto
-            Caixa caixaAberto = caixaDAO.buscarCaixaAberto();
-            int caixaId = (caixaAberto != null) ? caixaAberto.getId() : 0; // Se não tiver caixa, salva como 0
-
-            // A. Salvar Cabeçalho da Venda
-            try (PreparedStatement pstmtVenda = conn.prepareStatement(sqlVenda, Statement.RETURN_GENERATED_KEYS)) {
-                pstmtVenda.setString(1, venda.getDataHora().toString());
-                pstmtVenda.setDouble(2, venda.getValorTotal());
-                pstmtVenda.setString(3, venda.getFormaPagamento());
-                pstmtVenda.setInt(4, 1); // Usuário Admin (Fixo)
-                pstmtVenda.setInt(5, caixaId); // <--- Vínculo com a Sessão
-
-                pstmtVenda.executeUpdate();
-
-                try (ResultSet generatedKeys = pstmtVenda.getGeneratedKeys()) {
-                    if (generatedKeys.next()) {
-                        vendaIdGerado = generatedKeys.getInt(1);
-                    } else {
-                        throw new SQLException("Falha ao obter o ID da venda.");
-                    }
-                }
+            // Lógica de ID e Remoção de Encomenda
+            if (venda.getId() != null && venda.getId() > 0) {
+                vendaIdParaSalvar = venda.getId();
+                excluirEncomendaInterno(conn, vendaIdParaSalvar);
+            } else {
+                vendaIdParaSalvar = getProximoIdVenda(conn);
             }
 
-            // B. Salvar Itens
+            Caixa caixaAberto = caixaDAO.buscarCaixaAberto();
+            int caixaId = (caixaAberto != null) ? caixaAberto.getId() : 0;
+
+            // A. Inserir Venda
+            try (PreparedStatement pstmtVenda = conn.prepareStatement(sqlVenda)) {
+                pstmtVenda.setInt(1, vendaIdParaSalvar);
+                pstmtVenda.setString(2, venda.getDataHora().toString());
+                pstmtVenda.setDouble(3, venda.getValorTotal());
+                pstmtVenda.setString(4, venda.getFormaPagamento());
+                pstmtVenda.setInt(5, 1); // Usuário padrão
+                pstmtVenda.setInt(6, caixaId);
+                pstmtVenda.executeUpdate();
+            }
+
+            // B. Inserir Itens (COM CUSTO)
             try (PreparedStatement pstmtItem = conn.prepareStatement(sqlItem)) {
                 for (ItemVenda item : itens) {
-                    pstmtItem.setInt(1, vendaIdGerado);
+                    pstmtItem.setInt(1, vendaIdParaSalvar);
                     pstmtItem.setInt(2, item.getProduto().getId());
                     pstmtItem.setDouble(3, item.getQuantidade());
                     pstmtItem.setDouble(4, item.getPrecoUnitario());
                     pstmtItem.setDouble(5, item.getTotalItem());
+                    // Salva o custo histórico (snapshot)
+                    pstmtItem.setDouble(6, item.getCustoUnitario());
                     pstmtItem.addBatch();
                 }
                 pstmtItem.executeBatch();
             }
 
-            // C. Salvar Pagamentos
+            // C. Inserir Pagamentos
             try (PreparedStatement pstmtPagamento = conn.prepareStatement(sqlPagamento)) {
                 for (Pagamento pagamento : pagamentos) {
-                    pstmtPagamento.setInt(1, vendaIdGerado);
+                    pstmtPagamento.setInt(1, vendaIdParaSalvar);
                     pstmtPagamento.setString(2, pagamento.getTipo());
                     pstmtPagamento.setDouble(3, pagamento.getValor());
                     pstmtPagamento.addBatch();
@@ -79,7 +83,7 @@ public class VendaDAO {
                 pstmtPagamento.executeBatch();
             }
 
-            // D. Baixar Estoque
+            // D. Atualizar Estoque
             try (PreparedStatement pstmtUpdateEstoque = conn.prepareStatement(sqlUpdateEstoque)) {
                 for (ItemVenda item : itens) {
                     pstmtUpdateEstoque.setDouble(1, item.getQuantidade());
@@ -89,40 +93,217 @@ public class VendaDAO {
                 pstmtUpdateEstoque.executeBatch();
             }
 
-            conn.commit(); // Confirma tudo
+            conn.commit(); // FIM DA TRANSAÇÃO
+            System.out.println("DEBUG: Venda #" + vendaIdParaSalvar + " salva com sucesso.");
 
         } catch (SQLException e) {
+            System.err.println("DEBUG: Erro ao salvar venda #" + vendaIdParaSalvar + ": " + e.getMessage());
             if (conn != null) {
                 try { conn.rollback(); } catch (SQLException ex) { ex.printStackTrace(); }
             }
             throw e;
         } finally {
             if (conn != null) {
-                try { conn.setAutoCommit(true); } catch (SQLException e) { e.printStackTrace(); }
+                try { conn.close(); } catch (SQLException e) { e.printStackTrace(); }
             }
         }
-        return vendaIdGerado;
+        return vendaIdParaSalvar;
     }
 
-    // --- 2. AUXILIARES DO PDV ---
-    public int getProximoIdVenda() {
-        String sql = "SELECT COALESCE(MAX(id), 0) + 1 AS proximo_id FROM vendas";
+    // --- MÉTODOS DE ENCOMENDA ---
+
+    public void salvarEncomenda(Encomenda enc) throws SQLException {
+        if (existeEncomenda(enc.getId())) {
+            atualizarEncomenda(enc);
+        } else {
+            inserirNovaEncomenda(enc);
+        }
+    }
+
+    private boolean existeEncomenda(Integer id) {
+        if (id == null) return false;
+        String sql = "SELECT 1 FROM encomendas WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, id);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) { return false; }
+    }
+
+    private void inserirNovaEncomenda(Encomenda enc) throws SQLException {
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            if (enc.getId() == null || enc.getId() == 0) {
+                enc.setId(getProximoIdVenda(conn));
+            }
+
+            String sqlEnc = "INSERT INTO encomendas (id, nome_cliente, data_retirada, valor_total, status) VALUES (?, ?, ?, ?, ?)";
+            String sqlItem = "INSERT INTO itens_encomenda (encomenda_id, produto_id, quantidade, valor_unitario, total_item) VALUES (?, ?, ?, ?, ?)";
+
+            try (PreparedStatement pstmt = conn.prepareStatement(sqlEnc)) {
+                pstmt.setInt(1, enc.getId());
+                pstmt.setString(2, enc.getNomeCliente());
+                pstmt.setString(3, (enc.getDataRetirada() != null) ? enc.getDataRetirada().toString() : LocalDateTime.now().toString());
+                pstmt.setDouble(4, enc.getValorTotal());
+                pstmt.setString(5, "PENDENTE");
+                pstmt.executeUpdate();
+            }
+
+            try (PreparedStatement pstmtItem = conn.prepareStatement(sqlItem)) {
+                for (ItemVenda item : enc.getItens()) {
+                    pstmtItem.setInt(1, enc.getId());
+                    pstmtItem.setInt(2, item.getProduto().getId());
+                    pstmtItem.setDouble(3, item.getQuantidade());
+                    pstmtItem.setDouble(4, item.getPrecoUnitario());
+                    pstmtItem.setDouble(5, item.getTotalItem());
+                    pstmtItem.addBatch();
+                }
+                pstmtItem.executeBatch();
+            }
+            conn.commit();
+        } catch (SQLException e) {
+            if (conn != null) try { conn.rollback(); } catch (SQLException ex) { }
+            throw e;
+        } finally {
+            if (conn != null) try { conn.close(); } catch (SQLException e) { }
+        }
+    }
+
+    private void atualizarEncomenda(Encomenda enc) throws SQLException {
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            String sqlUpdate = "UPDATE encomendas SET nome_cliente=?, valor_total=? WHERE id=?";
+            try (PreparedStatement pstmt = conn.prepareStatement(sqlUpdate)) {
+                pstmt.setString(1, enc.getNomeCliente());
+                pstmt.setDouble(2, enc.getValorTotal());
+                pstmt.setInt(3, enc.getId());
+                pstmt.executeUpdate();
+            }
+
+            String sqlDelItens = "DELETE FROM itens_encomenda WHERE encomenda_id=?";
+            try (PreparedStatement pstmt = conn.prepareStatement(sqlDelItens)) {
+                pstmt.setInt(1, enc.getId());
+                pstmt.executeUpdate();
+            }
+
+            String sqlItem = "INSERT INTO itens_encomenda (encomenda_id, produto_id, quantidade, valor_unitario, total_item) VALUES (?, ?, ?, ?, ?)";
+            try (PreparedStatement pstmtItem = conn.prepareStatement(sqlItem)) {
+                for (ItemVenda item : enc.getItens()) {
+                    pstmtItem.setInt(1, enc.getId());
+                    pstmtItem.setInt(2, item.getProduto().getId());
+                    pstmtItem.setDouble(3, item.getQuantidade());
+                    pstmtItem.setDouble(4, item.getPrecoUnitario());
+                    pstmtItem.setDouble(5, item.getTotalItem());
+                    pstmtItem.addBatch();
+                }
+                pstmtItem.executeBatch();
+            }
+            conn.commit();
+        } catch (SQLException e) {
+            if (conn != null) try { conn.rollback(); } catch (SQLException ex) { }
+            throw e;
+        } finally {
+            if (conn != null) try { conn.close(); } catch (SQLException e) { }
+        }
+    }
+
+    public List<Encomenda> buscarTodasEncomendasPendentes() {
+        List<Encomenda> lista = new ArrayList<>();
+        String sql = "SELECT * FROM encomendas WHERE status = 'PENDENTE'";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) {
+            while (rs.next()) {
+                Encomenda enc = new Encomenda();
+                enc.setId(rs.getInt("id"));
+                enc.setNomeCliente(rs.getString("nome_cliente"));
+                String dt = rs.getString("data_retirada");
+                if (dt != null) enc.setDataRetirada(LocalDateTime.parse(dt));
+                enc.setValorTotal(rs.getDouble("valor_total"));
+                enc.setStatus(rs.getString("status"));
+                enc.setItens(buscarItensPorEncomenda(enc.getId()));
+                lista.add(enc);
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return lista;
+    }
+
+    private List<ItemVenda> buscarItensPorEncomenda(int encomendaId) {
+        String sql = "SELECT i.*, p.nome, p.unidade, p.preco_venda FROM itens_encomenda i JOIN produtos p ON i.produto_id = p.id WHERE i.encomenda_id = ?";
+        List<ItemVenda> itens = new ArrayList<>();
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, encomendaId);
+            ResultSet rs = pstmt.executeQuery();
+            while(rs.next()) {
+                Produto p = new Produto();
+                p.setId(rs.getInt("produto_id"));
+                p.setNome(rs.getString("nome"));
+                p.setUnidade(rs.getString("unidade"));
+                p.setPrecoVenda(rs.getDouble("preco_venda"));
+
+                ItemVenda item = new ItemVenda();
+                item.setProduto(p);
+                item.setQuantidade(rs.getDouble("quantidade"));
+                item.setPrecoUnitario(rs.getDouble("valor_unitario"));
+                // Encomendas não tem a coluna custo ainda, então assume 0 ou pega do cadastro se precisar
+                itens.add(item);
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return itens;
+    }
+
+    // --- MÉTODOS DE EXCLUSÃO ---
+
+    public void cancelarEncomenda(int id) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            excluirEncomendaInterno(conn, id);
+        } catch (SQLException e) { e.printStackTrace(); }
+    }
+
+    private void excluirEncomendaInterno(Connection conn, int id) throws SQLException {
+        String sqlItens = "DELETE FROM itens_encomenda WHERE encomenda_id = ?";
+        String sqlEnc = "DELETE FROM encomendas WHERE id = ?";
+
+        try (PreparedStatement p1 = conn.prepareStatement(sqlItens)) {
+            p1.setInt(1, id);
+            p1.executeUpdate();
+        }
+        try (PreparedStatement p2 = conn.prepareStatement(sqlEnc)) {
+            p2.setInt(1, id);
+            p2.executeUpdate();
+        }
+    }
+
+    // --- AUXILIARES E IDs ---
+
+    public int getProximoIdVenda() {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return getProximoIdVenda(conn);
+        } catch (SQLException e) { return 1; }
+    }
+
+    private int getProximoIdVenda(Connection conn) {
+        String sql = "SELECT COALESCE(MAX(id), 0) + 1 AS proximo_id FROM (SELECT id FROM vendas UNION ALL SELECT id FROM encomendas)";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql);
              ResultSet rs = pstmt.executeQuery()) {
             if (rs.next()) return rs.getInt("proximo_id");
         } catch (SQLException e) { e.printStackTrace(); }
         return 1;
     }
 
-    // --- 3. RELATÓRIOS (Cards de Totais) ---
+    // --- RELATÓRIOS ---
+
     public double buscarTotalPorTipo(java.time.LocalDate data, String tipoPagamento) {
-        String sql = """
-            SELECT SUM(p.valor) as total 
-            FROM pagamentos_venda p
-            INNER JOIN vendas v ON p.venda_id = v.id
-            WHERE date(v.data_hora) = date(?) AND p.tipo = ?
-        """;
+        String sql = "SELECT SUM(p.valor) as total FROM pagamentos_venda p INNER JOIN vendas v ON p.venda_id = v.id WHERE date(v.data_hora) = date(?) AND p.tipo = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, data.toString());
@@ -133,49 +314,67 @@ public class VendaDAO {
         return 0.0;
     }
 
-    // --- 4. RELATÓRIOS (Tabela Analítica Detalhada) ---
     public List<Venda> buscarVendasDetalhadasPorData(java.time.LocalDate data) {
+        // Adicionei a subquery: (SELECT SUM(i.custo_unitario * i.quantidade) ...) as val_custo
         String sql = """
             SELECT 
                 v.id, v.data_hora, v.valor_total, v.forma_pagamento,
-                SUM(CASE WHEN p.tipo = 'DINHEIRO' THEN p.valor ELSE 0 END) as val_dinheiro,
-                SUM(CASE WHEN p.tipo = 'DÉBITO'   THEN p.valor ELSE 0 END) as val_debito,
-                SUM(CASE WHEN p.tipo = 'CRÉDITO'  THEN p.valor ELSE 0 END) as val_credito,
-                SUM(CASE WHEN p.tipo = 'PIX'      THEN p.valor ELSE 0 END) as val_pix
-            FROM vendas v
-            LEFT JOIN pagamentos_venda p ON v.id = p.venda_id
-            WHERE date(v.data_hora) = date(?)
-            GROUP BY v.id
+                (SELECT SUM(i.custo_unitario * i.quantidade) FROM itens_venda i WHERE i.venda_id = v.id) as val_custo,
+                SUM(CASE WHEN p.tipo = 'DINHEIRO' THEN p.valor ELSE 0 END) as val_dinheiro, 
+                SUM(CASE WHEN p.tipo = 'DÉBITO' THEN p.valor ELSE 0 END) as val_debito, 
+                SUM(CASE WHEN p.tipo = 'CRÉDITO' THEN p.valor ELSE 0 END) as val_credito, 
+                SUM(CASE WHEN p.tipo = 'PIX' THEN p.valor ELSE 0 END) as val_pix 
+            FROM vendas v 
+            LEFT JOIN pagamentos_venda p ON v.id = p.venda_id 
+            WHERE date(v.data_hora) = date(?) 
+            GROUP BY v.id 
             ORDER BY v.data_hora DESC
         """;
 
         List<Venda> lista = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
             pstmt.setString(1, data.toString());
             ResultSet rs = pstmt.executeQuery();
-
             while (rs.next()) {
-                Venda v = new Venda();
-                v.setId(rs.getInt("id"));
-                v.setDataHora(java.time.LocalDateTime.parse(rs.getString("data_hora")));
-                v.setValorTotal(rs.getDouble("valor_total"));
-                v.setFormaPagamento(rs.getString("forma_pagamento"));
-
-                v.setValorDinheiro(rs.getDouble("val_dinheiro"));
-                v.setValorDebito(rs.getDouble("val_debito"));
-                v.setValorCredito(rs.getDouble("val_credito"));
-                v.setValorPix(rs.getDouble("val_pix"));
-
+                Venda v = mapVendaDetalhada(rs);
+                // Mapeia o custo novo
+                v.setValorCusto(rs.getDouble("val_custo"));
                 lista.add(v);
             }
         } catch (SQLException e) { e.printStackTrace(); }
         return lista;
     }
 
-    // --- 5. DETALHES PARA O RECIBO ---
+    public List<Venda> buscarVendasDetalhadasPorCaixa(int caixaId) {
+        String sql = "SELECT v.id, v.data_hora, v.valor_total, v.forma_pagamento, SUM(CASE WHEN p.tipo = 'DINHEIRO' THEN p.valor ELSE 0 END) as val_dinheiro, SUM(CASE WHEN p.tipo = 'DÉBITO' THEN p.valor ELSE 0 END) as val_debito, SUM(CASE WHEN p.tipo = 'CRÉDITO' THEN p.valor ELSE 0 END) as val_credito, SUM(CASE WHEN p.tipo = 'PIX' THEN p.valor ELSE 0 END) as val_pix FROM vendas v LEFT JOIN pagamentos_venda p ON v.id = p.venda_id WHERE v.caixa_id = ? GROUP BY v.id ORDER BY v.data_hora DESC";
+        List<Venda> lista = new ArrayList<>();
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, caixaId);
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                lista.add(mapVendaDetalhada(rs));
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return lista;
+    }
+
+    private Venda mapVendaDetalhada(ResultSet rs) throws SQLException {
+        Venda v = new Venda();
+        v.setId(rs.getInt("id"));
+        v.setDataHora(java.time.LocalDateTime.parse(rs.getString("data_hora")));
+        v.setValorTotal(rs.getDouble("valor_total"));
+        v.setFormaPagamento(rs.getString("forma_pagamento"));
+        v.setValorDinheiro(rs.getDouble("val_dinheiro"));
+        v.setValorDebito(rs.getDouble("val_debito"));
+        v.setValorCredito(rs.getDouble("val_credito"));
+        v.setValorPix(rs.getDouble("val_pix"));
+        return v;
+    }
+
     public List<ItemVenda> buscarItensPorVenda(int vendaId) {
+        // ATUALIZADO: Recupera o custo_unitario do banco
         String sql = "SELECT i.*, p.nome, p.unidade, p.preco_venda FROM itens_venda i JOIN produtos p ON i.produto_id = p.id WHERE i.venda_id = ?";
         List<ItemVenda> itens = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
@@ -193,6 +392,15 @@ public class VendaDAO {
                 item.setProduto(p);
                 item.setQuantidade(rs.getDouble("quantidade"));
                 item.setPrecoUnitario(rs.getDouble("valor_unitario"));
+
+                // Recupera o custo salvo historicamente
+                // O try/catch é só precaução caso o banco antigo ainda não tenha a coluna populada em vendas velhas
+                try {
+                    item.setCustoUnitario(rs.getDouble("custo_unitario"));
+                } catch (SQLException ex) {
+                    item.setCustoUnitario(0.0);
+                }
+
                 itens.add(item);
             }
         } catch (SQLException e) { e.printStackTrace(); }
@@ -211,45 +419,5 @@ public class VendaDAO {
             }
         } catch (SQLException e) { e.printStackTrace(); }
         return pagamentos;
-    }
-    // Método novo: Busca vendas detalhadas de um CAIXA ESPECÍFICO
-    public List<Venda> buscarVendasDetalhadasPorCaixa(int caixaId) {
-        String sql = """
-            SELECT 
-                v.id, v.data_hora, v.valor_total, v.forma_pagamento,
-                SUM(CASE WHEN p.tipo = 'DINHEIRO' THEN p.valor ELSE 0 END) as val_dinheiro,
-                SUM(CASE WHEN p.tipo = 'DÉBITO'   THEN p.valor ELSE 0 END) as val_debito,
-                SUM(CASE WHEN p.tipo = 'CRÉDITO'  THEN p.valor ELSE 0 END) as val_credito,
-                SUM(CASE WHEN p.tipo = 'PIX'      THEN p.valor ELSE 0 END) as val_pix
-            FROM vendas v
-            LEFT JOIN pagamentos_venda p ON v.id = p.venda_id
-            WHERE v.caixa_id = ? 
-            GROUP BY v.id
-            ORDER BY v.data_hora DESC
-        """;
-
-        List<Venda> lista = new ArrayList<>();
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setInt(1, caixaId); // Filtra pelo ID do caixa clicado
-            ResultSet rs = pstmt.executeQuery();
-
-            while (rs.next()) {
-                Venda v = new Venda();
-                v.setId(rs.getInt("id"));
-                v.setDataHora(java.time.LocalDateTime.parse(rs.getString("data_hora")));
-                v.setValorTotal(rs.getDouble("valor_total"));
-                v.setFormaPagamento(rs.getString("forma_pagamento"));
-
-                v.setValorDinheiro(rs.getDouble("val_dinheiro"));
-                v.setValorDebito(rs.getDouble("val_debito"));
-                v.setValorCredito(rs.getDouble("val_credito"));
-                v.setValorPix(rs.getDouble("val_pix"));
-
-                lista.add(v);
-            }
-        } catch (SQLException e) { e.printStackTrace(); }
-        return lista;
     }
 }

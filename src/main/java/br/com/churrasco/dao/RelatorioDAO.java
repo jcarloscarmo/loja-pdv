@@ -14,20 +14,21 @@ import java.util.List;
 public class RelatorioDAO {
 
     public List<ItemRelatorio> buscarVendasPorPeriodo(LocalDate inicio, LocalDate fim) {
-        // SQL Poderoso: Soma quantidades e valores agrupando pelo ID do produto
+        // Atualizei o SQL para calcular o lucro (considerando que custo pode ser null em vendas antigas)
         String sql = """
             SELECT 
                 p.codigo, 
                 p.nome, 
                 p.unidade, 
                 SUM(i.quantidade) as qtd_total, 
-                SUM(i.total_item) as valor_total
+                SUM(i.total_item) as valor_total,
+                SUM(i.total_item - (COALESCE(i.custo_unitario, 0) * i.quantidade)) as lucro_total
             FROM itens_venda i
             JOIN vendas v ON i.venda_id = v.id
             JOIN produtos p ON i.produto_id = p.id
             WHERE date(v.data_hora) BETWEEN date(?) AND date(?)
             GROUP BY p.id
-            ORDER BY valor_total DESC -- Ordena do que mais faturou para o que menos faturou
+            ORDER BY valor_total DESC
         """;
 
         List<ItemRelatorio> lista = new ArrayList<>();
@@ -46,7 +47,8 @@ public class RelatorioDAO {
                         rs.getString("nome"),
                         rs.getString("unidade"),
                         rs.getDouble("qtd_total"),
-                        rs.getDouble("valor_total")
+                        rs.getDouble("valor_total"),
+                        rs.getDouble("lucro_total") // <--- Pega o cálculo do banco
                 ));
             }
         } catch (SQLException e) {

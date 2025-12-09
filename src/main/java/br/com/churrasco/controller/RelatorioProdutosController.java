@@ -2,7 +2,7 @@ package br.com.churrasco.controller;
 
 import br.com.churrasco.dao.RelatorioDAO;
 import br.com.churrasco.model.ItemRelatorio;
-import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -23,6 +23,8 @@ public class RelatorioProdutosController {
     @FXML private DatePicker dtInicio;
     @FXML private DatePicker dtFim;
     @FXML private Label lblTotalPeriodo;
+    @FXML private Label lblLucroPeriodo;
+    @FXML private Label lblCustoPeriodo; // <--- NOVO
 
     @FXML private TableView<ItemRelatorio> tabela;
     @FXML private TableColumn<ItemRelatorio, String> colCodigo;
@@ -30,13 +32,14 @@ public class RelatorioProdutosController {
     @FXML private TableColumn<ItemRelatorio, String> colUnidade;
     @FXML private TableColumn<ItemRelatorio, Double> colQtd;
     @FXML private TableColumn<ItemRelatorio, Double> colTotal;
+    @FXML private TableColumn<ItemRelatorio, Double> colLucro;
+    @FXML private TableColumn<ItemRelatorio, Double> colCusto; // <--- NOVO
 
     private RelatorioDAO relatorioDAO = new RelatorioDAO();
     private ObservableList<ItemRelatorio> lista = FXCollections.observableArrayList();
 
     @FXML
     public void initialize() {
-        // Padrão: Início do mês até hoje
         dtInicio.setValue(LocalDate.now().withDayOfMonth(1));
         dtFim.setValue(LocalDate.now());
 
@@ -48,15 +51,18 @@ public class RelatorioProdutosController {
     public void carregarDados() {
         LocalDate inicio = dtInicio.getValue();
         LocalDate fim = dtFim.getValue();
-
         if (inicio == null || fim == null) return;
 
         List<ItemRelatorio> itens = relatorioDAO.buscarVendasPorPeriodo(inicio, fim);
         lista.setAll(itens);
 
-        // Calcula totalzão lá embaixo
         double totalGeral = lista.stream().mapToDouble(ItemRelatorio::getValorTotal).sum();
-        lblTotalPeriodo.setText(String.format("R$ %.2f", totalGeral));
+        double lucroGeral = lista.stream().mapToDouble(ItemRelatorio::getLucroTotal).sum();
+        double custoGeral = totalGeral - lucroGeral; // Cálculo simples
+
+        lblTotalPeriodo.setText(formatar(totalGeral));
+        lblLucroPeriodo.setText(formatar(lucroGeral));
+        lblCustoPeriodo.setText(formatar(custoGeral));
     }
 
     private void configurarTabela() {
@@ -65,33 +71,41 @@ public class RelatorioProdutosController {
         colUnidade.setCellValueFactory(new PropertyValueFactory<>("unidade"));
         colQtd.setCellValueFactory(new PropertyValueFactory<>("quantidadeTotal"));
         colTotal.setCellValueFactory(new PropertyValueFactory<>("valorTotal"));
+        colLucro.setCellValueFactory(new PropertyValueFactory<>("lucroTotal"));
 
-        // Formatação Inteligente de Quantidade (KG vs UN)
+        // CALCULA O CUSTO NA TABELA (Faturamento - Lucro)
+        colCusto.setCellValueFactory(data -> {
+            double custo = data.getValue().getValorTotal() - data.getValue().getLucroTotal();
+            return new SimpleObjectProperty<>(custo);
+        });
+
         colQtd.setCellFactory(tc -> new TableCell<>() {
             @Override protected void updateItem(Double item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                } else {
+                if (empty || item == null) setText(null);
+                else {
                     ItemRelatorio linha = getTableView().getItems().get(getIndex());
-                    if ("KG".equals(linha.getUnidade())) {
-                        setText(String.format("%.3f", item));
-                    } else {
-                        setText(String.format("%.0f", item));
-                    }
+                    String fmt = "KG".equals(linha.getUnidade()) ? "%.3f" : "%.0f";
+                    setText(String.format(fmt, item));
                 }
             }
         });
 
-        // Formatação Moeda
-        colTotal.setCellFactory(tc -> new TableCell<>() {
-            @Override protected void updateItem(Double item, boolean empty) {
-                super.updateItem(item, empty);
-                setText((empty || item == null) ? null : String.format("R$ %.2f", item));
-            }
-        });
+        colTotal.setCellFactory(this::criarCelulaMoeda);
+        colLucro.setCellFactory(this::criarCelulaMoeda);
+        colCusto.setCellFactory(this::criarCelulaMoeda);
 
         tabela.setItems(lista);
+    }
+
+    private TableCell<ItemRelatorio, Double> criarCelulaMoeda(TableColumn<ItemRelatorio, Double> param) {
+        return new TableCell<>() {
+            @Override protected void updateItem(Double item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) setText(null);
+                else setText(formatar(item));
+            }
+        };
     }
 
     @FXML
@@ -103,4 +117,6 @@ public class RelatorioProdutosController {
             stage.setMaximized(true);
         } catch (Exception e) { e.printStackTrace(); }
     }
+
+    private String formatar(double val) { return String.format("R$ %.2f", val); }
 }

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+<?import javafx.scene.effect.*?>
+
+<StackPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="br.com.churrasco.controller.SplashController"
+           prefHeight="400.0" prefWidth="600.0"
+           style="-fx-background-color: linear-gradient(to bottom right, #2c3e50, #000000);">
+
+    <VBox alignment="CENTER" spacing="20">
+
+        <VBox alignment="CENTER" spacing="5">
+            <Label text="TIÃOZINHO'S" textFill="#e67e22">
+                <font><Font name="System Bold" size="36.0"/></font>
+                <effect><DropShadow color="#000000" radius="5" spread="0.5"/></effect>
+            </Label>
+            <Label text="GRILL" textFill="#c0392b">
+                <font><Font name="System Bold" size="48.0"/></font>
+                <effect><DropShadow color="#000000" radius="10" spread="0.5"/></effect>
+            </Label>
+            <Label text="SISTEMA DE GESTÃO INTEGRADO" textFill="WHITE">
+                <font><Font size="14.0"/></font>
+            </Label>
+        </VBox>
+
+        <Region prefHeight="30"/>
+
+        <VBox alignment="CENTER" maxWidth="400" spacing="5">
+            <ProgressBar fx:id="barraProgresso" prefWidth="400" progress="0.0"
+                         style="-fx-accent: #e67e22;"/>
+            <Label fx:id="lblStatus" text="Carregando módulos..." textFill="#bdc3c7">
+                <font><Font size="12.0"/></font>
+            </Label>
+        </VBox>
+
+    </VBox>
+</StackPane>

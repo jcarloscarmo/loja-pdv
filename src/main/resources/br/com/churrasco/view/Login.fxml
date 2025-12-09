@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+<?import javafx.scene.effect.*?>
+
+<StackPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="br.com.churrasco.controller.LoginController"
+           prefHeight="400.0" prefWidth="600.0"
+           style="-fx-background-color: linear-gradient(to bottom, #2c3e50, #000000);">
+
+    <VBox alignment="CENTER" spacing="15" maxWidth="300" style="-fx-background-color: rgba(255,255,255,0.05); -fx-padding: 30; -fx-background-radius: 10;">
+
+        <Label text="ACESSO RESTRITO" textFill="#bdc3c7">
+            <font><Font size="12.0"/></font>
+        </Label>
+
+        <Label text="IDENTIFIQUE-SE" textFill="#e67e22">
+            <font><Font name="System Bold" size="24.0"/></font>
+            <effect><DropShadow color="#000000" radius="5"/></effect>
+        </Label>
+
+        <Region prefHeight="10"/>
+
+        <ComboBox fx:id="comboUsuario" promptText="Selecione o Usuário" maxWidth="Infinity"
+                  style="-fx-font-size: 14px; -fx-background-color: white;"/>
+
+        <PasswordField fx:id="txtSenha" promptText="Senha" style="-fx-font-size: 14px;"/>
+
+        <Region prefHeight="10"/>
+
+        <Button text="ENTRAR NO SISTEMA" onAction="#fazerLogin"
+                maxWidth="Infinity" defaultButton="true"
+                style="-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand; -fx-font-size: 14px;"/>
+
+        <Button text="ENCERRAR" onAction="#sair"
+                maxWidth="Infinity" cancelButton="true"
+                style="-fx-background-color: transparent; -fx-text-fill: #7f8c8d; -fx-cursor: hand;"/>
+
+    </VBox>
+</StackPane>

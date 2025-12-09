@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.churrasco.controller.NovaEncomendaController"
+      alignment="TOP_CENTER" spacing="15" style="-fx-padding: 20; -fx-background-color: #f4f6f7; -fx-border-color: #8e44ad; -fx-border-width: 3;" prefWidth="400" prefHeight="350">
+
+    <Label text="NOVA ENCOMENDA" textFill="#8e44ad">
+        <font><Font name="System Bold" size="22"/></font>
+    </Label>
+
+    <Separator/>
+
+    <VBox alignment="CENTER_LEFT" spacing="5">
+        <Label text="Nome do Cliente:" style="-fx-font-weight: bold;"/>
+        <TextField fx:id="txtCliente" promptText="Ex: João da Silva" style="-fx-font-size: 16px;"/>
+    </VBox>
+
+    <HBox spacing="10">
+        <VBox HBox.hgrow="ALWAYS" spacing="5">
+            <Label text="Data Retirada:" style="-fx-font-weight: bold;"/>
+            <DatePicker fx:id="dtRetirada" maxWidth="Infinity"/>
+        </VBox>
+
+        <VBox HBox.hgrow="ALWAYS" spacing="5">
+            <Label text="Hora (HH:mm):" style="-fx-font-weight: bold;"/>
+            <TextField fx:id="txtHora" promptText="12:30" alignment="CENTER"/>
+        </VBox>
+    </HBox>
+
+    <Region VBox.vgrow="ALWAYS"/>
+
+    <HBox spacing="10">
+        <Button text="CANCELAR (ESC)" onAction="#cancelar" maxWidth="Infinity" HBox.hgrow="ALWAYS"
+                style="-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-weight: bold;"/>
+
+        <Button text="SALVAR (*)" onAction="#salvar" defaultButton="true" maxWidth="Infinity" HBox.hgrow="ALWAYS"
+                style="-fx-background-color: #8e44ad; -fx-text-fill: white; -fx-font-weight: bold;"/>
+    </HBox>
+
+</VBox>

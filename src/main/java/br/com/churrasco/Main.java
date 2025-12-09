@@ -6,11 +6,12 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle; // Importante para tirar a borda da janela
 
 public class Main extends Application {
 
     public static void main(String[] args) {
-        // Inicializa Banco
+        // Inicializa Banco antes de tudo
         try {
             DatabaseConnection.getConnection();
         } catch (Exception e) {
@@ -21,15 +22,15 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        FXMLLoader loader = new FXMLLoader(getClass().getResource("/br/com/churrasco/view/Menu.fxml"));
+        // Agora carrega o SPLASH primeiro
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("/br/com/churrasco/view/Login.fxml"));
         Parent root = loader.load();
 
-        primaryStage.setTitle("PDV Churrascaria - Sistema de Gestão");
+        // Remove a barra de título da janela (fica só o quadrado colorido)
+        primaryStage.initStyle(StageStyle.UNDECORATED);
+
         primaryStage.setScene(new Scene(root));
-
-        // COMEÇA MAXIMIZADO
-        primaryStage.setMaximized(true);
-
+        primaryStage.centerOnScreen(); // Centraliza no monitor
         primaryStage.show();
     }
 }

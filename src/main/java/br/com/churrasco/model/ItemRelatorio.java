@@ -11,4 +11,5 @@ public class ItemRelatorio {
     private String unidade;
     private Double quantidadeTotal;
     private Double valorTotal;
+    private Double lucroTotal;
 }
