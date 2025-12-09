@@ -5,25 +5,40 @@ import br.com.churrasco.util.DatabaseConnection;
 
 import java.sql.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class CaixaDAO {
 
-    // Verifica se existe algum caixa com status 'ABERTO'
+    // --- MÉTODO 1: Para uso geral (Menu, etc) ---
+    // Abre sua própria conexão
     public Caixa buscarCaixaAberto() {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return buscarCaixaAberto(conn); // Reutiliza a lógica abaixo
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    // --- MÉTODO 2: CRUCIAL PARA SALVAR VENDA SEM ERRO DE SNAPSHOT ---
+    // Usa a conexão que recebeu e NÃO a fecha (pois pertence à transação da venda)
+    public Caixa buscarCaixaAberto(Connection conn) throws SQLException {
         String sql = "SELECT * FROM caixas WHERE status = 'ABERTO' ORDER BY id DESC LIMIT 1";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql);
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql);
              ResultSet rs = pstmt.executeQuery()) {
 
             if (rs.next()) {
                 Caixa c = new Caixa();
                 c.setId(rs.getInt("id"));
                 c.setSaldoInicial(rs.getDouble("saldo_inicial"));
-                c.setDataAbertura(LocalDateTime.parse(rs.getString("data_abertura")));
+                String dtAbertura = rs.getString("data_abertura");
+                if (dtAbertura != null) c.setDataAbertura(LocalDateTime.parse(dtAbertura));
                 c.setStatus(rs.getString("status"));
                 return c;
             }
-        } catch (SQLException e) { e.printStackTrace(); }
+        }
         return null;
     }
 
@@ -54,8 +69,6 @@ public class CaixaDAO {
         }
     }
 
-    // Calcula quanto deveria ter em DINHEIRO (Saldo Inicial + Vendas em Dinheiro - Sangrias)
-    // Nota: Por enquanto não temos sangria, então é Saldo Inicial + Vendas Dinheiro
     public double calcularSaldoDinheiroSistema(int caixaId) {
         String sql = """
             SELECT SUM(p.valor) as total 
@@ -76,10 +89,9 @@ public class CaixaDAO {
         return totalVendasDinheiro;
     }
 
-    // Método para listar o histórico completo
-    public java.util.List<Caixa> listarHistorico() {
-        String sql = "SELECT * FROM caixas ORDER BY id DESC"; // Do mais novo pro mais velho
-        java.util.List<Caixa> lista = new java.util.ArrayList<>();
+    public List<Caixa> listarHistorico() {
+        String sql = "SELECT * FROM caixas ORDER BY id DESC";
+        List<Caixa> lista = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -90,7 +102,6 @@ public class CaixaDAO {
                 c.setId(rs.getInt("id"));
                 c.setUsuarioId(rs.getInt("usuario_id"));
 
-                // Tratamento de datas (pode ser null se o caixa ainda estiver aberto)
                 String dtAbertura = rs.getString("data_abertura");
                 if(dtAbertura != null) c.setDataAbertura(LocalDateTime.parse(dtAbertura));
 
