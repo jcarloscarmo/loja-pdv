@@ -9,10 +9,8 @@
             fx:id="rootPane"
             prefHeight="700.0" prefWidth="1000.0">
 
-    <!-- TOPO: Título, Botões e FAIXA DE ENCOMENDAS -->
     <top>
         <VBox>
-            <!-- Barra Superior (Título e Botões) -->
             <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-background-color: #2c3e50; -fx-padding: 15;">
 
                 <Label text="CHURRASCARIA PDV" textFill="WHITE" maxWidth="Infinity" HBox.hgrow="ALWAYS">
@@ -23,7 +21,6 @@
                     <font><Font name="System Bold" size="20.0"/></font>
                 </Label>
 
-                <!-- Botão Nova Encomenda (Atalho *) -->
                 <Button text="NOVA ENCOMENDA (*)" onAction="#abrirNovaEncomenda"
                         style="-fx-background-color: #8e44ad; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;"/>
 
@@ -34,7 +31,6 @@
                         style="-fx-background-color: #c0392b; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;"/>
             </HBox>
 
-            <!-- Faixa de Encomendas Pendentes -->
             <ScrollPane fitToHeight="true" vbarPolicy="NEVER" hbarPolicy="AS_NEEDED"
                         style="-fx-background-color: #ecf0f1; -fx-padding: 5;" prefHeight="85">
                 <content>
@@ -44,7 +40,6 @@
         </VBox>
     </top>
 
-    <!-- CENTRO: Tabela de Itens (Ocupa tudo agora) -->
     <center>
         <TableView fx:id="tabelaItens" fixedCellSize="45.0"
                    style="-fx-font-size: 18px; -fx-base: #ecf0f1; -fx-selection-bar: #3498db;">
@@ -61,7 +56,6 @@
         </TableView>
     </center>
 
-    <!-- ESQUERDA: Entradas -->
     <left>
         <VBox spacing="15" style="-fx-background-color: #ecf0f1; -fx-padding: 20; -fx-border-color: #bdc3c7; -fx-border-width: 0 1 0 0;" prefWidth="300">
 
@@ -70,7 +64,6 @@
             </Label>
             <TextField fx:id="txtCodigo" promptText="Digite..." style="-fx-font-size: 20px; -fx-alignment: CENTER;"/>
 
-            <!-- LABEL DE PRE-VISUALIZAÇÃO DO PRODUTO -->
             <Label fx:id="lblProdutoIdentificado" text="..." wrapText="true" textAlignment="CENTER"
                    style="-fx-text-fill: #2980b9; -fx-font-size: 18px; -fx-font-weight: bold; -fx-background-color: #d6eaf8; -fx-padding: 10; -fx-background-radius: 5;"
                    maxWidth="Infinity" alignment="CENTER"/>
@@ -78,7 +71,11 @@
             <Label text="2. PESO (KG) / QTD">
                 <font><Font name="System Bold" size="12.0"/></font>
             </Label>
+
             <TextField fx:id="txtPeso" promptText="0,000" disable="true" style="-fx-font-size: 20px; -fx-alignment: CENTER;"/>
+
+            <Label fx:id="lblStatusBalanca" text="" alignment="CENTER" maxWidth="Infinity"
+                   style="-fx-font-size: 11px; -fx-font-weight: bold;"/>
 
             <Region VBox.vgrow="ALWAYS"/>
 

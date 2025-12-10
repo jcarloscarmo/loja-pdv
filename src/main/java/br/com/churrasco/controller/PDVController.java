@@ -37,6 +37,10 @@ public class PDVController {
     @FXML private BorderPane rootPane;
     @FXML private TextField txtCodigo;
     @FXML private TextField txtPeso;
+
+    // NOVO LABEL DE STATUS DA BALANÇA
+    @FXML private Label lblStatusBalanca;
+
     @FXML private Label lblTotalVenda;
     @FXML private Label lblProdutoIdentificado;
     @FXML private Label lblNumeroVenda;
@@ -61,6 +65,8 @@ public class PDVController {
     private final List<Encomenda> encomendasAbertas = new ArrayList<>();
     private Integer idEncomendaEmAndamento = null;
 
+    private volatile boolean lendoBalanca = false;
+
     @FXML
     public void initialize() {
         configurarTabela();
@@ -68,12 +74,165 @@ public class PDVController {
         configurarEventosTabela();
         configurarMascaraPeso();
         configurarSelecaoTabela();
+        configurarLeituraAutomaticaBalanca();
 
         resetarPDV();
         recuperarEncomendasPendentes();
     }
 
-    // --- ENCOMENDAS (CORREÇÃO DE ERRO DE COMPILAÇÃO AQUI) ---
+    // --- LEITURA DE BALANÇA (VISUAL NOVO) ---
+    private void configurarLeituraAutomaticaBalanca() {
+        txtPeso.focusedProperty().addListener((obs, foiFocado, estaFocado) -> {
+            if (estaFocado && produtoAtual != null && "KG".equals(produtoAtual.getUnidade())) {
+                iniciarLoopBalanca();
+            } else {
+                pararLoopBalanca();
+            }
+        });
+    }
+
+    private void iniciarLoopBalanca() {
+        if (lendoBalanca) return;
+        lendoBalanca = true;
+
+        // STATUS: PROCURANDO (LARANJA)
+        Platform.runLater(() -> {
+            if (lblStatusBalanca != null) {
+                lblStatusBalanca.setText("AGUARDANDO BALANÇA...");
+                lblStatusBalanca.setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold; -fx-font-size: 11px;");
+            }
+        });
+
+        Thread threadBalanca = new Thread(() -> {
+            while (lendoBalanca) {
+                try {
+                    Double pesoLido = balancaService.lerPeso();
+                    if (pesoLido != null && pesoLido > 0) {
+                        Platform.runLater(() -> {
+                            if (txtPeso.isFocused()) {
+                                txtPeso.setText(String.format("%.3f", pesoLido));
+
+                                // STATUS: SUCESSO (VERDE)
+                                if (lblStatusBalanca != null) {
+                                    lblStatusBalanca.setText("PESO LIDO! (" + String.format("%.3f", pesoLido) + "kg)");
+                                    lblStatusBalanca.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold; -fx-font-size: 11px;");
+                                }
+                            }
+                        });
+                    }
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    lendoBalanca = false;
+                }
+            }
+        });
+
+        threadBalanca.setDaemon(true);
+        threadBalanca.start();
+    }
+
+    private void pararLoopBalanca() {
+        lendoBalanca = false;
+        // LIMPA O STATUS
+        Platform.runLater(() -> {
+            if (lblStatusBalanca != null) lblStatusBalanca.setText("");
+        });
+    }
+
+    // --- PROCESSAMENTO DE ITEM ---
+    private void processarInputPeso() {
+        try {
+            String textoPeso = txtPeso.getText().replace(",", ".");
+            if (textoPeso.isEmpty()) return;
+
+            double qtd = Double.parseDouble(textoPeso);
+            if (qtd <= 0) return;
+
+            if (itemEmEdicao != null) {
+                itemEmEdicao.setQuantidade(qtd);
+                cancelarEdicao();
+            } else {
+                carrinho.add(new ItemVenda(produtoAtual, qtd));
+            }
+
+            atualizarTotaisVisualmente();
+            limparCamposAposInsercao();
+
+        } catch (Exception e) {}
+    }
+
+    private void limparCamposAposInsercao() {
+        pararLoopBalanca();
+
+        txtPeso.setText("");
+        txtPeso.setDisable(true);
+        txtCodigo.setText("");
+
+        if (lblProdutoIdentificado != null) lblProdutoIdentificado.setText("AGUARDANDO...");
+        if (lblStatusBalanca != null) lblStatusBalanca.setText(""); // Garante limpeza visual
+
+        produtoAtual = null;
+        itemEmEdicao = null;
+        tabelaItens.getSelectionModel().clearSelection();
+
+        Platform.runLater(() -> {
+            txtCodigo.requestFocus();
+            txtCodigo.selectAll();
+        });
+    }
+
+    // --- MÉTODOS DE VENDA ---
+    @FXML
+    public void finalizarVenda() {
+        if (carrinho.isEmpty()) {
+            mostrarAlerta("Carrinho vazio!", Alert.AlertType.WARNING);
+            return;
+        }
+        try {
+            PagamentoController pagController = abrirModalPagamento();
+            if (!pagController.isConfirmado()) return;
+
+            List<Pagamento> pagamentos = pagController.getPagamentosRealizados();
+            double totalVenda = calcularTotalCarrinho();
+
+            ConfirmacaoController confController = abrirModalConfirmacao(pagamentos, totalVenda);
+            if (!confController.isConfirmado()) return;
+
+            salvarVendaNoBanco(totalVenda, pagamentos);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            mostrarAlerta("Erro Crítico: " + e.getMessage(), Alert.AlertType.ERROR);
+        }
+    }
+
+    private void salvarVendaNoBanco(double total, List<Pagamento> pagamentos) {
+        try {
+            Venda venda = new Venda();
+            venda.setDataHora(LocalDateTime.now());
+            venda.setValorTotal(total);
+            venda.setFormaPagamento(determinarTipoPagamento(pagamentos));
+
+            if (idEncomendaEmAndamento != null) {
+                venda.setId(idEncomendaEmAndamento);
+            }
+
+            int idVendaSalva = vendaDAO.salvarVenda(venda, new ArrayList<>(carrinho), pagamentos);
+            venda.setId(idVendaSalva);
+
+            List<ItemVenda> itensCopia = new ArrayList<>(carrinho);
+            List<Pagamento> pagsCopia = new ArrayList<>(pagamentos);
+            new Thread(() -> impressoraService.imprimirCupom(venda, itensCopia, pagsCopia)).start();
+
+            resetarPDV();
+            mostrarAlerta("Venda Nº " + idVendaSalva + " realizada com sucesso!", Alert.AlertType.INFORMATION);
+
+        } catch (Exception e) {
+            mostrarAlerta("ERRO AO SALVAR: " + e.getMessage(), Alert.AlertType.ERROR);
+        }
+    }
+
+    // --- ENCOMENDAS ---
     @FXML
     public void abrirNovaEncomenda(ActionEvent event) {
         if (carrinho.isEmpty()) {
@@ -107,24 +266,99 @@ public class PDVController {
                     nova.setItens(new ArrayList<>(carrinho));
                     nova.setStatus("PENDENTE");
 
-                    if (idEncomendaEmAndamento != null) nova.setId(idEncomendaEmAndamento);
+                    if (idEncomendaEmAndamento != null) {
+                        nova.setId(idEncomendaEmAndamento);
+                    }
 
-                    // AQUI DAVA ERRO: O catch precisava ser Exception, não só IOException
                     vendaDAO.salvarEncomenda(nova);
 
                     encomendasAbertas.add(nova);
                     criarCardEncomenda(nova);
+
                     mostrarAlerta("Encomenda salva! Estoque reservado.", Alert.AlertType.INFORMATION);
                     resetarPDV();
                 }
             }
-        } catch (Exception e) { // <--- CORREÇÃO: Catch genérico para pegar erros de Banco E Tela
+        } catch (Exception e) {
             e.printStackTrace();
             mostrarAlerta("Erro ao processar encomenda: " + e.getMessage(), Alert.AlertType.ERROR);
         }
     }
 
-    // --- SEGURANÇA E FECHAMENTO ---
+    private void recuperarEncomendasPendentes() {
+        boxEncomendas.getChildren().clear();
+        encomendasAbertas.clear();
+
+        Thread t = new Thread(() -> {
+            try {
+                List<Encomenda> pendentes = vendaDAO.buscarTodasEncomendasPendentes();
+                Platform.runLater(() -> {
+                    if (pendentes != null) {
+                        for (Encomenda enc : pendentes) {
+                            encomendasAbertas.add(enc);
+                            criarCardEncomenda(enc);
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void criarCardEncomenda(Encomenda encomenda) {
+        if (boxEncomendas == null) return;
+        String idTexto = (encomenda.getId() != null) ? "#" + encomenda.getId() : "";
+        Button btnCard = new Button("ENC " + idTexto + "\n" + encomenda.getNomeCliente());
+        btnCard.setStyle("-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 120; -fx-min-height: 50; -fx-background-radius: 5;");
+        HBox.setMargin(btnCard, new javafx.geometry.Insets(0, 5, 0, 5));
+
+        btnCard.setOnAction(e -> {
+            ButtonType btnAbrir = new ButtonType("ABRIR/RESGATAR", ButtonBar.ButtonData.OK_DONE);
+            ButtonType btnCancelar = new ButtonType("CANCELAR PEDIDO", ButtonBar.ButtonData.OTHER);
+            ButtonType btnFechar = new ButtonType("FECHAR", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+            Alert info = new Alert(Alert.AlertType.CONFIRMATION);
+            info.setTitle("Gerenciar Encomenda " + idTexto);
+            info.setHeaderText("Cliente: " + encomenda.getNomeCliente());
+            double total = (encomenda.getItens() != null) ? encomenda.getItens().stream().mapToDouble(ItemVenda::getTotalItem).sum() : 0.0;
+            info.setContentText("Total: R$ " + String.format("%.2f", total) + "\n\nO que deseja fazer?");
+            info.getButtonTypes().setAll(btnAbrir, btnCancelar, btnFechar);
+
+            Optional<ButtonType> result = info.showAndWait();
+
+            if (result.isPresent()) {
+                if (result.get() == btnAbrir) {
+                    if (!carrinho.isEmpty()) {
+                        mostrarAlerta("Esvazie o caixa antes de abrir encomenda!", Alert.AlertType.WARNING);
+                        return;
+                    }
+                    if (encomenda.getItens() != null) carrinho.setAll(encomenda.getItens());
+                    this.idEncomendaEmAndamento = encomenda.getId();
+
+                    atualizarTotaisVisualmente();
+                    atualizarNumeroVenda();
+                    encomendasAbertas.remove(encomenda);
+                    boxEncomendas.getChildren().remove(btnCard);
+                    mostrarAlerta("Encomenda aberta! Itens carregados.", Alert.AlertType.INFORMATION);
+
+                } else if (result.get() == btnCancelar) {
+                    Alert confirmacao = new Alert(Alert.AlertType.CONFIRMATION, "Deseja cancelar esta encomenda? O estoque será devolvido.", ButtonType.YES, ButtonType.NO);
+                    if (confirmacao.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
+                        vendaDAO.cancelarEncomenda(encomenda.getId());
+                        encomendasAbertas.remove(encomenda);
+                        boxEncomendas.getChildren().remove(btnCard);
+                        mostrarAlerta("Encomenda cancelada e estoque estornado.", Alert.AlertType.INFORMATION);
+                    }
+                }
+            }
+        });
+        boxEncomendas.getChildren().add(btnCard);
+    }
+
+    // --- SEGURANÇA NO FECHAMENTO ---
     @FXML
     public void acaoFecharCaixa() {
         if (!carrinho.isEmpty()) {
@@ -182,123 +416,32 @@ public class PDVController {
         return false;
     }
 
-    // --- VENDA ---
-    @FXML public void finalizarVenda() {
-        if (carrinho.isEmpty()) { mostrarAlerta("Carrinho vazio!", Alert.AlertType.WARNING); return; }
-        try {
-            PagamentoController pag = abrirModalPagamento();
-            if (!pag.isConfirmado()) return;
-            ConfirmacaoController conf = abrirModalConfirmacao(pag.getPagamentosRealizados(), calcularTotalCarrinho());
-            if (!conf.isConfirmado()) return;
-            salvarVendaNoBanco(calcularTotalCarrinho(), pag.getPagamentosRealizados());
-        } catch (Exception e) { e.printStackTrace(); mostrarAlerta("Erro Crítico: " + e.getMessage(), Alert.AlertType.ERROR); }
-    }
-
-    private void salvarVendaNoBanco(double total, List<Pagamento> pagamentos) {
-        try {
-            Venda venda = new Venda();
-            venda.setDataHora(LocalDateTime.now());
-            venda.setValorTotal(total);
-            venda.setFormaPagamento(determinarTipoPagamento(pagamentos));
-            if (idEncomendaEmAndamento != null) venda.setId(idEncomendaEmAndamento);
-            int id = vendaDAO.salvarVenda(venda, new ArrayList<>(carrinho), pagamentos);
-            venda.setId(id);
-            List<ItemVenda> itensCopia = new ArrayList<>(carrinho); List<Pagamento> pagsCopia = new ArrayList<>(pagamentos);
-            new Thread(() -> impressoraService.imprimirCupom(venda, itensCopia, pagsCopia)).start();
-            resetarPDV();
-            mostrarAlerta("Venda Nº " + id + " realizada com sucesso!", Alert.AlertType.INFORMATION);
-        } catch (Exception e) { mostrarAlerta("ERRO AO SALVAR: " + e.getMessage(), Alert.AlertType.ERROR); }
-    }
-
-    private void recuperarEncomendasPendentes() {
-        boxEncomendas.getChildren().clear(); encomendasAbertas.clear();
-        Thread t = new Thread(() -> {
-            try {
-                List<Encomenda> pendentes = vendaDAO.buscarTodasEncomendasPendentes();
-                Platform.runLater(() -> {
-                    if (pendentes != null) {
-                        for (Encomenda enc : pendentes) { encomendasAbertas.add(enc); criarCardEncomenda(enc); }
-                    }
-                });
-            } catch (Exception e) { e.printStackTrace(); }
-        }); t.setDaemon(true); t.start();
-    }
-
-    private void criarCardEncomenda(Encomenda encomenda) {
-        if (boxEncomendas == null) return;
-        String idTexto = (encomenda.getId() != null) ? "#" + encomenda.getId() : "";
-        Button btnCard = new Button("ENC " + idTexto + "\n" + encomenda.getNomeCliente());
-        btnCard.setStyle("-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 120; -fx-min-height: 50; -fx-background-radius: 5;");
-        HBox.setMargin(btnCard, new javafx.geometry.Insets(0, 5, 0, 5));
-
-        btnCard.setOnAction(e -> {
-            ButtonType btnAbrir = new ButtonType("ABRIR/RESGATAR", ButtonBar.ButtonData.OK_DONE);
-            ButtonType btnCancelar = new ButtonType("CANCELAR PEDIDO", ButtonBar.ButtonData.OTHER);
-            ButtonType btnFechar = new ButtonType("FECHAR", ButtonBar.ButtonData.CANCEL_CLOSE);
-
-            Alert info = new Alert(Alert.AlertType.CONFIRMATION);
-            info.setTitle("Gerenciar Encomenda " + idTexto);
-            info.setHeaderText("Cliente: " + encomenda.getNomeCliente());
-            double total = (encomenda.getItens() != null) ? encomenda.getItens().stream().mapToDouble(ItemVenda::getTotalItem).sum() : 0.0;
-            info.setContentText("Total: R$ " + String.format("%.2f", total) + "\n\nO que deseja fazer?");
-            info.getButtonTypes().setAll(btnAbrir, btnCancelar, btnFechar);
-
-            Optional<ButtonType> result = info.showAndWait();
-
-            if (result.isPresent()) {
-                if (result.get() == btnAbrir) {
-                    if (!carrinho.isEmpty()) { mostrarAlerta("Esvazie o caixa antes de abrir encomenda!", Alert.AlertType.WARNING); return; }
-                    if (encomenda.getItens() != null) carrinho.setAll(encomenda.getItens());
-                    this.idEncomendaEmAndamento = encomenda.getId();
-                    atualizarTotaisVisualmente(); atualizarNumeroVenda();
-                    encomendasAbertas.remove(encomenda); boxEncomendas.getChildren().remove(btnCard);
-                    mostrarAlerta("Encomenda aberta! Itens carregados.", Alert.AlertType.INFORMATION);
-                } else if (result.get() == btnCancelar) {
-                    Alert confirmacao = new Alert(Alert.AlertType.CONFIRMATION, "Deseja cancelar esta encomenda? O estoque será devolvido.", ButtonType.YES, ButtonType.NO);
-                    if (confirmacao.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
-                        vendaDAO.cancelarEncomenda(encomenda.getId());
-                        encomendasAbertas.remove(encomenda); boxEncomendas.getChildren().remove(btnCard);
-                        mostrarAlerta("Encomenda cancelada e estoque estornado.", Alert.AlertType.INFORMATION);
-                    }
-                }
-            }
-        });
-        boxEncomendas.getChildren().add(btnCard);
-    }
-
-    // --- AUXILIARES, CONFIGURAÇÕES E MÁSCARAS (Mantidos do anterior) ---
+    // --- AUXILIARES E LAYOUT ---
     private void resetarPDV() {
         carrinho.clear(); atualizarTotaisVisualmente(); limparCamposAposInsercao();
         idEncomendaEmAndamento = null; atualizarNumeroVenda();
         if (lblProdutoIdentificado != null) lblProdutoIdentificado.setText("CAIXA LIVRE");
     }
     private void atualizarNumeroVenda() { try { int id = (idEncomendaEmAndamento != null) ? idEncomendaEmAndamento : vendaDAO.getProximoIdVenda(); if (lblNumeroVenda != null) lblNumeroVenda.setText("VENDA Nº " + id); } catch (Exception e) {} }
+    private void atualizarTotaisVisualmente() { lblTotalVenda.setText(String.format("R$ %.2f", calcularTotalCarrinho())); tabelaItens.refresh(); }
+    private void cancelarEdicao() { itemEmEdicao = null; txtCodigo.setDisable(false); }
     private void buscarProduto() {
         String codigo = txtCodigo.getText(); if (codigo.isEmpty()) return;
         Produto p = produtoDAO.buscarPorCodigo(codigo);
         if (p != null) {
             produtoAtual = p; lblProdutoIdentificado.setText(p.getNome());
-            if ("KG".equals(p.getUnidade())) { txtPeso.setDisable(false); txtPeso.setText(""); txtPeso.requestFocus(); }
-            else { txtPeso.setText("1"); adicionarAoCarrinho(); }
+            if ("KG".equals(p.getUnidade())) {
+                txtPeso.setDisable(false);
+                txtPeso.setText("");
+                txtPeso.requestFocus();
+            } else {
+                txtPeso.setText("1");
+                adicionarAoCarrinho();
+            }
         } else { lblProdutoIdentificado.setText("NÃO ENCONTRADO"); txtCodigo.selectAll(); }
     }
     private void adicionarAoCarrinho() { try { double qtd = Double.parseDouble(txtPeso.getText().replace(",", ".")); carrinho.add(new ItemVenda(produtoAtual, qtd)); atualizarTotaisVisualmente(); limparCamposAposInsercao(); } catch (Exception e) {} }
-    private void processarInputPeso() {
-        try {
-            double qtd = Double.parseDouble(txtPeso.getText().replace(",", "."));
-            if (itemEmEdicao != null) { itemEmEdicao.setQuantidade(qtd); cancelarEdicao(); }
-            else { carrinho.add(new ItemVenda(produtoAtual, qtd)); }
-            atualizarTotaisVisualmente(); limparCamposAposInsercao();
-        } catch (Exception e) {}
-    }
-    private void limparCamposAposInsercao() {
-        txtCodigo.setText(""); txtPeso.setText(""); txtPeso.setDisable(true);
-        if (lblProdutoIdentificado != null) lblProdutoIdentificado.setText("AGUARDANDO...");
-        Platform.runLater(() -> txtCodigo.requestFocus());
-        produtoAtual = null; itemEmEdicao = null; tabelaItens.getSelectionModel().clearSelection();
-    }
-    private void atualizarTotaisVisualmente() { lblTotalVenda.setText(String.format("R$ %.2f", calcularTotalCarrinho())); tabelaItens.refresh(); }
-    private void cancelarEdicao() { itemEmEdicao = null; txtCodigo.setDisable(false); }
+
     private void configurarEventosGlobais() {
         txtCodigo.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) buscarProduto(); });
         txtPeso.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) processarInputPeso(); });
@@ -308,6 +451,23 @@ public class PDVController {
             else if (event.getCode() == KeyCode.ESCAPE) { event.consume(); tentarSair(); }
         });
     }
+
+    private void configurarMascaraPeso() {
+        txtPeso.textProperty().addListener((obs, old, newValue) -> {
+            if (newValue == null || newValue.isEmpty()) return;
+            if (!lendoBalanca) {
+                String digitos = newValue.replaceAll("[^0-9]", "");
+                if (digitos.isEmpty()) return;
+                try {
+                    long valorBruto = Long.parseLong(digitos);
+                    String formatado = String.format("%.3f", valorBruto / 1000.0);
+                    if (!newValue.equals(formatado)) { Platform.runLater(() -> { txtPeso.setText(formatado); txtPeso.positionCaret(formatado.length()); }); }
+                } catch (NumberFormatException e) { }
+            }
+        });
+    }
+
+    // --- TABELA ---
     private void configurarTabela() {
         colNome.setCellValueFactory(new PropertyValueFactory<>("nomeProduto"));
         colQtd.setCellValueFactory(new PropertyValueFactory<>("quantidade"));
@@ -319,20 +479,9 @@ public class PDVController {
         tabelaItens.setItems(carrinho);
     }
     private void configurarEventosTabela() { tabelaItens.setOnKeyPressed(event -> { ItemVenda item = tabelaItens.getSelectionModel().getSelectedItem(); if (item != null && event.getCode() == KeyCode.DELETE) { carrinho.remove(item); atualizarTotaisVisualmente(); } }); }
-    private void configurarMascaraPeso() {
-        txtPeso.textProperty().addListener((obs, old, newValue) -> {
-            if (newValue == null || newValue.isEmpty()) return;
-            String digitos = newValue.replaceAll("[^0-9]", "");
-            if (digitos.isEmpty()) return;
-            try {
-                long valorBruto = Long.parseLong(digitos);
-                double valorFinal = valorBruto / 1000.0;
-                String formatado = String.format("%.3f", valorFinal);
-                if (!newValue.equals(formatado)) { Platform.runLater(() -> { txtPeso.setText(formatado); txtPeso.positionCaret(formatado.length()); }); }
-            } catch (NumberFormatException e) { }
-        });
-    }
     private void configurarSelecaoTabela() { tabelaItens.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> { if (newVal != null && "KG".equals(newVal.getProduto().getUnidade())) { itemEmEdicao = newVal; produtoAtual = newVal.getProduto(); txtPeso.setDisable(false); txtPeso.setText(String.format("%.3f", newVal.getQuantidade())); txtCodigo.setDisable(true); } }); }
+
+    // --- NAVEGAÇÃO E DIALOGOS ---
     @FXML public void tentarSair() { voltarAoMenu(); }
     private void voltarAoMenu() { try { Parent root = FXMLLoader.load(getClass().getResource("/br/com/churrasco/view/Menu.fxml")); Stage stage = (Stage) txtCodigo.getScene().getWindow(); stage.getScene().setRoot(root); } catch (Exception e) { e.printStackTrace(); } }
     private PagamentoController abrirModalPagamento() throws IOException { FXMLLoader l = new FXMLLoader(getClass().getResource("/br/com/churrasco/view/Pagamento.fxml")); Parent r = l.load(); PagamentoController c = l.getController(); c.setValorTotal(calcularTotalCarrinho()); Stage s = new Stage(); s.setScene(new Scene(r)); s.initModality(Modality.APPLICATION_MODAL); s.showAndWait(); return c; }

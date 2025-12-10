@@ -1,109 +1,61 @@
 package br.com.churrasco.service;
 
-import br.com.churrasco.dao.ConfigDAO;
-import br.com.churrasco.util.ConfigKeys;
 import com.fazecast.jSerialComm.SerialPort;
-import lombok.Getter;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 public class BalancaService {
 
-    private final ConfigDAO configDAO;
-    private SerialPort serialPort;
+    // Configurações Otimizadas (Toledo 9600)
+    private static final String PORTA = "COM5";
+    private static final int VELOCIDADE = 9600; // <--- Mais rápido
 
-    @Getter
-    private boolean conectada = false;
+    private static final byte[] COMANDO_LEITURA = {0x05};
 
-    public BalancaService() {
-        this.configDAO = new ConfigDAO();
-    }
-
-    /**
-     * Busca a porta no banco e abre a conexão.
-     * Deve ser chamado no initialize() do PDVController ou ao abrir o sistema.
-     */
-    public void conectar() throws Exception {
-        String portaNome = configDAO.getValor(ConfigKeys.BALANCA_PORTA)
-                .orElseThrow(() -> new Exception("Porta da balança não configurada."));
-
-        // Se já estiver aberta na mesma porta, não faz nada
-        if (conectada && serialPort != null && serialPort.getSystemPortName().equals(portaNome)) {
-            return;
-        }
-
-        desconectar(); // Fecha anterior se houver
-
-        serialPort = SerialPort.getCommPort(portaNome);
-        serialPort.setBaudRate(9600); // Toledo geralmente é 9600 ou 4800
-        serialPort.setNumDataBits(8);
-        serialPort.setNumStopBits(1);
-        serialPort.setParity(SerialPort.NO_PARITY);
-        // Timeout é crucial para o read() não travar a UI se a balança não responder
-        serialPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 200, 0);
-
-        if (serialPort.openPort()) {
-            this.conectada = true;
-        } else {
-            throw new Exception("Não foi possível abrir a porta " + portaNome);
-        }
-    }
-
-    public void desconectar() {
-        if (serialPort != null && serialPort.isOpen()) {
-            serialPort.closePort();
-        }
-        this.conectada = false;
-    }
-
-    /**
-     * Lê o peso da porta que JÁ está aberta.
-     * Não recebe argumentos.
-     */
-    public Double lerPeso() throws Exception {
-        if (!conectada || serialPort == null) {
-            conectar(); // Tenta reconectar automaticamente (fail-safe)
-        }
-
-        // Exemplo simplificado para Toledo (Protocolo P03 envia string tipo "000.560")
-        // O ideal é enviar o comando de solicitação (ENQ - 0x05) se a balança não enviar continuo
-
-        // 1. Limpar buffer de entrada (para não ler peso velho)
-        while (serialPort.bytesAvailable() > 0) {
-            byte[] lixo = new byte[serialPort.bytesAvailable()];
-            serialPort.readBytes(lixo, lixo.length);
-        }
-
-        // 2. Escrever comando (se necessário). Toledo P03 geralmente envia com Ctrl+E (0x05)
-        // serialPort.writeBytes(new byte[]{0x05}, 1);
-
-        // 3. Ler resposta
-        InputStream in = serialPort.getInputStream();
-        byte[] buffer = new byte[30]; // Tamanho suficiente para o frame
-
-        // Lê os bytes disponíveis (aguarda até 200ms pelo timeout definido acima)
-        int len = in.read(buffer);
-
-        if (len > 0) {
-            String dados = new String(buffer, 0, len);
-            // Aqui entra o parser específico.
-            // Exemplo Toledo: STX + PESO + ETX.
-            // Vamos assumir que recebemos uma string limpa ou precisamos filtrar digitos
-
-            return interpretarStringToledo(dados);
-        }
-
-        return 0.0;
-    }
-
-    private Double interpretarStringToledo(String dados) {
+    public Double lerPeso() {
+        SerialPort comPort = null;
         try {
-            // Remove tudo que não é número ou ponto
-            // Toledo geralmente manda algo como: " 001.230 "
-            String limpa = dados.replaceAll("[^0-9.]", "");
-            if (limpa.isEmpty()) return 0.0;
-            return Double.parseDouble(limpa);
-        } catch (NumberFormatException e) {
-            return 0.0;
+            comPort = SerialPort.getCommPort(PORTA);
+            comPort.setBaudRate(VELOCIDADE);
+            comPort.setNumDataBits(8);
+            comPort.setNumStopBits(1);
+            comPort.setParity(SerialPort.NO_PARITY);
+
+            // Timeout curto para não travar o sistema
+            comPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING | SerialPort.TIMEOUT_WRITE_BLOCKING, 500, 500);
+
+            if (comPort.openPort()) {
+                OutputStream out = comPort.getOutputStream();
+                InputStream in = comPort.getInputStream();
+
+                out.write(COMANDO_LEITURA);
+                out.flush();
+
+                // Espera reduzida para resposta quase instantânea
+                Thread.sleep(50);
+
+                if (comPort.bytesAvailable() > 0) {
+                    byte[] buffer = new byte[32];
+                    int len = in.read(buffer);
+
+                    if (len > 0) {
+                        String resposta = new String(buffer, 0, len);
+                        String pesoLimpo = resposta.replaceAll("[^0-9]", "");
+
+                        if (!pesoLimpo.isEmpty()) {
+                            double valorBruto = Double.parseDouble(pesoLimpo);
+                            return valorBruto / 1000.0;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Ignora erro de comunicação para não travar a tela
+        } finally {
+            if (comPort != null && comPort.isOpen()) {
+                comPort.closePort();
+            }
         }
+        return 0.0;
     }
 }
