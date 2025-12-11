@@ -1,64 +1,112 @@
 package br.com.churrasco.service;
 
-import br.com.churrasco.dao.ConfigDAO; // Importe o DAO
-import com.fazecast.jSerialComm.SerialPort;
-import java.io.InputStream;
-import java.io.OutputStream;
+import br.com.churrasco.dao.ConfigDAO;
+import br.com.churrasco.util.LogUtil;
+import jssc.SerialPort;
+import jssc.SerialPortException;
 
 public class BalancaService {
 
-    // REMOVI AS CONSTANTES FIXAS (PORTA/VELOCIDADE)
-
-    private static final byte[] COMANDO_LEITURA = {0x05};
-    private final ConfigDAO configDAO = new ConfigDAO(); // Instancia o DAO
+    private final ConfigDAO configDAO = new ConfigDAO();
 
     public Double lerPeso() {
-        // BUSCA DO BANCO DE DADOS AGORA!
-        // Se não achar, usa COM5 e 9600 como padrão
-        String porta = configDAO.getValor("balanca_porta").orElse("COM5");
-        int velocidade = Integer.parseInt(configDAO.getValor("balanca_velocidade").orElse("9600"));
+        String porta = configDAO.getValor("balanca_porta").orElse(null);
 
-        SerialPort comPort = null;
+        // Se não tiver porta configurada, nem tenta (evita spam no log)
+        if (porta == null || porta.isEmpty() || porta.contains("Nenhuma")) {
+            return null;
+        }
+
+        String velocidadeStr = configDAO.getValor("balanca_velocidade").orElse("9600");
+        int velocidade = 9600;
+        try { velocidade = Integer.parseInt(velocidadeStr); } catch (Exception e) {}
+
+        // --- INÍCIO DO RASTREIO ---
+        // Vamos logar APENAS se for abrir a porta, para não travar o HD com log infinito
+        // Mas como está crashando, precisamos saber.
+        // LogUtil.registrar("BALANCA", "Tentando abrir porta: " + porta);
+
+        SerialPort serialPort = new SerialPort(porta);
+
         try {
-            comPort = SerialPort.getCommPort(porta); // Usa a variável
-            comPort.setBaudRate(velocidade);         // Usa a variável
-            comPort.setNumDataBits(8);
-            comPort.setNumStopBits(1);
-            comPort.setParity(SerialPort.NO_PARITY);
+            // PASSO 1: ABRIR
+            // LogUtil.registrar("BALANCA", "Abrindo porta...");
+            boolean abriu = serialPort.openPort();
+            if (!abriu) {
+                LogUtil.registrar("BALANCA", "Falha ao abrir a porta (Ocupada ou inexistente): " + porta);
+                return null;
+            }
 
-            // ... (Restante do código igual) ...
+            // PASSO 2: CONFIGURAR
+            serialPort.setParams(velocidade, 8, 1, 0);
 
-            // Timeout curto
-            comPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING | SerialPort.TIMEOUT_WRITE_BLOCKING, 500, 500);
+            // PASSO 3: MANDAR COMANDO
+            // LogUtil.registrar("BALANCA", "Enviando ENQ...");
+            boolean enviou = serialPort.writeByte((byte) 0x05);
+            if (!enviou) {
+                LogUtil.registrar("BALANCA", "Falha ao enviar byte para balança.");
+            }
 
-            if (comPort.openPort()) {
-                OutputStream out = comPort.getOutputStream();
-                InputStream in = comPort.getInputStream();
+            // PASSO 4: ESPERAR
+            Thread.sleep(200);
 
-                out.write(COMANDO_LEITURA);
-                out.flush();
-                Thread.sleep(50);
+            // PASSO 5: LER
+            String dados = serialPort.readString();
+            // LogUtil.registrar("BALANCA", "Dados recebidos: " + dados);
 
-                if (comPort.bytesAvailable() > 0) {
-                    byte[] buffer = new byte[32];
-                    int len = in.read(buffer);
-                    if (len > 0) {
-                        String resposta = new String(buffer, 0, len);
-                        String pesoLimpo = resposta.replaceAll("[^0-9]", "");
-                        if (!pesoLimpo.isEmpty()) {
-                            double valorBruto = Double.parseDouble(pesoLimpo);
-                            return valorBruto / 1000.0;
-                        }
-                    }
-                }
+            // PASSO 6: FECHAR
+            serialPort.closePort();
+
+            if (dados != null && !dados.isEmpty()) {
+                return processarPeso(dados);
+            }
+
+        } catch (SerialPortException e) {
+            // ERRO ESPECÍFICO DE SERIAL
+            LogUtil.registrarErro("Erro JSSC na porta " + porta + " - Tipo: " + e.getExceptionType(), e);
+            fecharNaMarra(serialPort);
+        } catch (InterruptedException e) {
+            // Erro de thread (ignora)
+            fecharNaMarra(serialPort);
+        } catch (Throwable t) {
+            // ERRO GRAVE (DLL, NATIVO, CRASH)
+            LogUtil.registrarErro("ERRO FATAL/NATIVO NA BALANÇA", t);
+            fecharNaMarra(serialPort);
+        }
+
+        return null;
+    }
+
+    private void fecharNaMarra(SerialPort porta) {
+        try {
+            if (porta != null && porta.isOpened()) {
+                porta.closePort();
             }
         } catch (Exception e) {
-            // ...
-        } finally {
-            if (comPort != null && comPort.isOpen()) {
-                comPort.closePort();
-            }
+            // LogUtil.registrarErro("Erro ao fechar porta no catch", e);
         }
-        return 0.0;
+    }
+
+    private Double processarPeso(String dados) {
+        try {
+            // Remove caracteres estranhos (Deixa só numeros e ponto/virgula)
+            String limpo = dados.replaceAll("[^0-9,.]", "");
+
+            if (limpo.isEmpty()) return null;
+
+            // Tratamento para sujeira comum de balança (Ex: "ST1..0.500")
+            // Pega sempre os ultimos digitos válidos se tiver lixo
+
+            double peso = Double.parseDouble(limpo.replace(",", "."));
+
+            // LogUtil.registrar("BALANCA", "Peso processado: " + peso);
+
+            if (peso > 0 && peso < 200) { // Filtro de segurança
+                return peso;
+            }
+        } catch (Exception e) {
+            LogUtil.registrar("BALANCA", "Erro ao converter valor: " + dados);
+        }
+        return null;
     }
 }

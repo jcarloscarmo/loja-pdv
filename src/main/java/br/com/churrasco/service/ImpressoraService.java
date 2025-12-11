@@ -5,6 +5,7 @@ import br.com.churrasco.model.Caixa;
 import br.com.churrasco.model.ItemVenda;
 import br.com.churrasco.model.Pagamento;
 import br.com.churrasco.model.Venda;
+import br.com.churrasco.util.LogUtil;
 import com.github.anastaciocintra.escpos.EscPos;
 import com.github.anastaciocintra.escpos.EscPosConst;
 import com.github.anastaciocintra.escpos.Style;
@@ -155,6 +156,7 @@ public class ImpressoraService {
         if (!nomeConfig.isEmpty()) {
             PrintService servico = PrinterOutputStream.getPrintServiceByName(nomeConfig);
             if (servico != null) return servico;
+            LogUtil.registrarErro("Impressora não encontrada: '" + nomeConfig + "'", null);
         }
         return PrintServiceLookup.lookupDefaultPrintService();
     }
