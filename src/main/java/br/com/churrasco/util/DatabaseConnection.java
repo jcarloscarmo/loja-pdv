@@ -8,23 +8,18 @@ import java.sql.Statement;
 public class DatabaseConnection {
 
     private static final String URL = "jdbc:sqlite:pdv.db";
-
-    // Flag para garantir que só criamos as tabelas 1 vez por execução
     private static boolean tabelasVerificadas = false;
 
     public static Connection getConnection() throws SQLException {
         Connection conn = DriverManager.getConnection(URL);
 
-        // Só entra aqui na primeira vez que o sistema rodar (lá no Main ou Splash)
         if (!tabelasVerificadas) {
             try (Statement stmt = conn.createStatement()) {
-                // Ativa o modo WAL
                 stmt.execute("PRAGMA journal_mode=WAL;");
-                // Sincronismo NORMAL é mais rápido e seguro o suficiente
                 stmt.execute("PRAGMA synchronous=NORMAL;");
             }
             verificarEAtualizarTabelas(conn);
-            tabelasVerificadas = true; // Trava para não rodar mais
+            tabelasVerificadas = true;
         }
 
         return conn;
@@ -35,9 +30,10 @@ public class DatabaseConnection {
 
             // 1. USUÁRIOS
             stmt.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE, senha TEXT, perfil TEXT)");
-            // Inserts com REPLACE para garantir que existam
-            stmt.execute("INSERT OR REPLACE INTO usuarios (id, nome, senha, perfil) VALUES (1, 'Tião', 'fuka2010', 'DONO')");
-            stmt.execute("INSERT OR REPLACE INTO usuarios (id, nome, senha, perfil) VALUES (2, 'Clara', '2025', 'ATENDENTE')");
+
+            // --- AQUI ESTÁ A MÁGICA: GARANTE O ADMIN SEM SENHA ---
+            // Usamos INSERT OR REPLACE para garantir que ele exista com ID 1
+            stmt.execute("INSERT OR REPLACE INTO usuarios (id, nome, senha, perfil) VALUES (1, 'ADMIN', '', 'ADMIN')");
 
             // 2. PRODUTOS
             stmt.execute("CREATE TABLE IF NOT EXISTS produtos (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE, nome TEXT, preco_custo REAL, preco_venda REAL, unidade TEXT, estoque REAL)");
@@ -62,19 +58,21 @@ public class DatabaseConnection {
             // 4. VENDAS
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS vendas (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    usuario_id INTEGER,
-                    caixa_id INTEGER,
-                    data_hora TEXT,
-                    valor_total REAL,
-                    forma_pagamento TEXT,
-                    FOREIGN KEY(usuario_id) REFERENCES usuarios(id),
-                    FOREIGN KEY(caixa_id) REFERENCES caixas(id)
+                  id INTEGER PRIMARY KEY,
+                  data_hora TEXT,
+                  valor_total REAL,
+                  desconto REAL DEFAULT 0.0,
+                  forma_pagamento TEXT,
+                  usuario_id INTEGER,
+                  caixa_id INTEGER,
+                  FOREIGN KEY(usuario_id) REFERENCES usuarios(id),
+                  FOREIGN KEY(caixa_id) REFERENCES caixas(id)
                 );
             """);
             try { stmt.execute("ALTER TABLE vendas ADD COLUMN usuario_id INTEGER DEFAULT 1"); } catch (SQLException e) {}
             try { stmt.execute("ALTER TABLE vendas ADD COLUMN forma_pagamento TEXT DEFAULT 'MISTO'"); } catch (SQLException e) {}
             try { stmt.execute("ALTER TABLE vendas ADD COLUMN caixa_id INTEGER"); } catch (SQLException e) {}
+            try { stmt.execute("ALTER TABLE vendas ADD COLUMN desconto REAL DEFAULT 0.0"); } catch (SQLException e) {}
 
             // 5. ITENS VENDA
             stmt.execute("""
@@ -97,8 +95,6 @@ public class DatabaseConnection {
             stmt.execute("CREATE TABLE IF NOT EXISTS configuracoes (chave TEXT PRIMARY KEY, valor TEXT)");
             stmt.execute("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('empresa_nome', 'CHURRASCARIA DO MESTRE')");
             stmt.execute("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('impressora_nome', 'POS58MM')");
-            stmt.execute("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('balanca_porta', 'COM5')");
-            stmt.execute("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('balanca_velocidade', '2400')");
 
             // 8. ENCOMENDAS
             stmt.execute("""
@@ -122,6 +118,18 @@ public class DatabaseConnection {
                     total_item REAL,
                     FOREIGN KEY(encomenda_id) REFERENCES encomendas(id),
                     FOREIGN KEY(produto_id) REFERENCES produtos(id)
+                );
+            """);
+
+            // 10. DESPESAS
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS despesas (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    descricao TEXT NOT NULL,
+                    valor REAL NOT NULL,
+                    data_pagamento TEXT NOT NULL,
+                    categoria TEXT NOT NULL,
+                    observacao TEXT
                 );
             """);
 

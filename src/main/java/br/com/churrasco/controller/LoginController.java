@@ -12,7 +12,7 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
-import javafx.scene.control.ComboBox; // Importante
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.PasswordField;
 import javafx.stage.Stage;
 
@@ -20,7 +20,6 @@ import java.util.List;
 
 public class LoginController {
 
-    // Mudou de TextField para ComboBox
     @FXML private ComboBox<String> comboUsuario;
     @FXML private PasswordField txtSenha;
 
@@ -28,11 +27,11 @@ public class LoginController {
 
     @FXML
     public void initialize() {
-        // Carrega os nomes do banco e joga na lista
+        // Carrega os usuários do banco (ADMIN, Tião, Clara...)
         List<String> nomes = usuarioDAO.listarNomes();
         comboUsuario.setItems(FXCollections.observableArrayList(nomes));
 
-        // Seleciona o primeiro da lista pra facilitar (opcional)
+        // Seleciona o primeiro da lista automaticamente
         if (!nomes.isEmpty()) {
             comboUsuario.getSelectionModel().selectFirst();
         }
@@ -40,22 +39,27 @@ public class LoginController {
 
     @FXML
     public void fazerLogin(ActionEvent event) {
-        String nome = comboUsuario.getValue(); // Pega do Dropdown
+        String nome = comboUsuario.getValue();
         String senha = txtSenha.getText();
 
-        if (nome == null || nome.isEmpty() || senha.isEmpty()) {
-            mostrarAlerta("Selecione um usuário e digite a senha.");
+        // CORREÇÃO: Removido "|| senha.isEmpty()"
+        // Agora permitimos senha em branco (para o caso do ADMIN inicial)
+        if (nome == null || nome.isEmpty()) {
+            mostrarAlerta("Selecione um usuário.");
             return;
         }
 
+        // Tenta autenticar no banco
         Usuario usuario = usuarioDAO.autenticar(nome, senha);
 
         if (usuario != null) {
             Sessao.setUsuario(usuario);
-            LogUtil.registrar(usuario.getNome(), "Realizou login no sistema.");
+            // LogUtil opcional, se não tiver a classe LogUtil pode comentar a linha abaixo
+            try { LogUtil.registrar(usuario.getNome(), "Realizou login no sistema."); } catch (Exception e) {}
+
             abrirMenuPrincipal(event);
         } else {
-            LogUtil.registrar(nome, "Tentativa de login falhou.");
+            // Se falhar
             mostrarAlerta("Senha incorreta!");
         }
     }
@@ -75,6 +79,7 @@ public class LoginController {
             stageMenu.show();
         } catch (Exception e) {
             e.printStackTrace();
+            mostrarAlerta("Erro ao abrir o Menu: " + e.getMessage());
         }
     }
 

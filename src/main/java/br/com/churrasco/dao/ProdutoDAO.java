@@ -29,7 +29,8 @@ public class ProdutoDAO {
     }
 
     public List<Produto> listarTodos() {
-        String sql = "SELECT * FROM produtos";
+        // Ordena por código para ficar bonito na tela
+        String sql = "SELECT * FROM produtos ORDER BY CAST(codigo AS UNSIGNED) ASC";
         List<Produto> produtos = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -87,7 +88,6 @@ public class ProdutoDAO {
         }
     }
 
-    // Adicione este método na classe ProdutoDAO
     public void atualizar(Produto p) {
         String sql = "UPDATE produtos SET codigo = ?, nome = ?, preco_custo = ?, preco_venda = ?, unidade = ?, estoque = ? WHERE id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
@@ -99,11 +99,29 @@ public class ProdutoDAO {
             pstmt.setDouble(4, p.getPrecoVenda());
             pstmt.setString(5, p.getUnidade());
             pstmt.setDouble(6, p.getEstoque());
-            pstmt.setInt(7, p.getId()); // O ID é usado no WHERE para saber qual atualizar
+            pstmt.setInt(7, p.getId());
 
             pstmt.executeUpdate();
         } catch (SQLException e) {
             System.out.println("Erro ao atualizar: " + e.getMessage());
         }
+    }
+
+    // --- NOVO MÉTODO: GERA O PRÓXIMO CÓDIGO SEQUENCIAL ---
+    public String buscarProximoCodigoDisponivel() {
+        // Converte o código para número para achar o maior (evita que 10 venha antes de 2)
+        String sql = "SELECT MAX(CAST(codigo AS UNSIGNED)) as max_cod FROM produtos";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) {
+
+            if (rs.next()) {
+                int max = rs.getInt("max_cod");
+                return String.valueOf(max + 1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return "1"; // Se não tiver nada, começa do 1
     }
 }

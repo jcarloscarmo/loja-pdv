@@ -17,9 +17,10 @@ public class VendaDAO {
 
     private CaixaDAO caixaDAO = new CaixaDAO();
 
-    // --- 1. SALVAR VENDA ---
+    // --- 1. SALVAR VENDA (COM DESCONTO) ---
     public int salvarVenda(Venda venda, List<ItemVenda> itens, List<Pagamento> pagamentos) throws SQLException {
-        String sqlVenda = "INSERT INTO vendas (id, data_hora, valor_total, forma_pagamento, usuario_id, caixa_id) VALUES (?, ?, ?, ?, ?, ?)";
+        // ATUALIZADO: Incluindo a coluna 'desconto'
+        String sqlVenda = "INSERT INTO vendas (id, data_hora, valor_total, forma_pagamento, usuario_id, caixa_id, desconto) VALUES (?, ?, ?, ?, ?, ?, ?)";
         String sqlItem = "INSERT INTO itens_venda (venda_id, produto_id, quantidade, valor_unitario, total_item, custo_unitario) VALUES (?, ?, ?, ?, ?, ?)";
         String sqlPagamento = "INSERT INTO pagamentos_venda (venda_id, tipo, valor) VALUES (?, ?, ?)";
         String sqlUpdateEstoque = "UPDATE produtos SET estoque = estoque - ? WHERE id = ?";
@@ -39,24 +40,25 @@ public class VendaDAO {
                 vendaIdParaSalvar = getProximoIdVenda(conn);
             }
 
-            // --- AQUI ESTAVA O ERRO ---
-            // Antes: Caixa caixaAberto = caixaDAO.buscarCaixaAberto(); (Abria outra conexão e travava)
-            // Agora: Passamos o 'conn' atual
+            // Busca caixa usando a MESMA conexão para evitar erro de Snapshot
             Caixa caixaAberto = caixaDAO.buscarCaixaAberto(conn);
-            // --------------------------
-
             int caixaId = (caixaAberto != null) ? caixaAberto.getId() : 0;
 
+            // A. Inserir Cabeçalho da Venda
             try (PreparedStatement pstmtVenda = conn.prepareStatement(sqlVenda)) {
                 pstmtVenda.setInt(1, vendaIdParaSalvar);
                 pstmtVenda.setString(2, venda.getDataHora().toString());
-                pstmtVenda.setDouble(3, venda.getValorTotal());
+                pstmtVenda.setDouble(3, venda.getValorTotal()); // Valor Líquido (Já com desconto aplicado)
                 pstmtVenda.setString(4, venda.getFormaPagamento());
-                pstmtVenda.setInt(5, 1);
+                pstmtVenda.setInt(5, 1); // Usuário (pode ajustar depois para pegar da Sessao)
                 pstmtVenda.setInt(6, caixaId);
+                // Salva o desconto (Se for null, salva 0.0)
+                pstmtVenda.setDouble(7, venda.getDesconto() != null ? venda.getDesconto() : 0.0);
+
                 pstmtVenda.executeUpdate();
             }
 
+            // B. Inserir Itens
             try (PreparedStatement pstmtItem = conn.prepareStatement(sqlItem)) {
                 for (ItemVenda item : itens) {
                     pstmtItem.setInt(1, vendaIdParaSalvar);
@@ -70,6 +72,7 @@ public class VendaDAO {
                 pstmtItem.executeBatch();
             }
 
+            // C. Inserir Pagamentos
             try (PreparedStatement pstmtPagamento = conn.prepareStatement(sqlPagamento)) {
                 for (Pagamento pagamento : pagamentos) {
                     pstmtPagamento.setInt(1, vendaIdParaSalvar);
@@ -80,6 +83,7 @@ public class VendaDAO {
                 pstmtPagamento.executeBatch();
             }
 
+            // D. Baixar Estoque
             try (PreparedStatement pstmtUpdateEstoque = conn.prepareStatement(sqlUpdateEstoque)) {
                 for (ItemVenda item : itens) {
                     pstmtUpdateEstoque.setDouble(1, item.getQuantidade());
@@ -280,9 +284,7 @@ public class VendaDAO {
                 item.setProduto(p);
                 item.setQuantidade(rs.getDouble("quantidade"));
                 item.setPrecoUnitario(rs.getDouble("valor_unitario"));
-
                 item.setTotalItem(rs.getDouble("total_item"));
-
                 itens.add(item);
             }
         } catch (SQLException e) { e.printStackTrace(); }
@@ -316,10 +318,11 @@ public class VendaDAO {
         return 0.0;
     }
 
+    // ATUALIZADO: Traz o campo 'desconto' do banco
     public List<Venda> buscarVendasDetalhadasPorData(java.time.LocalDate data) {
         String sql = """
             SELECT 
-                v.id, v.data_hora, v.valor_total, v.forma_pagamento,
+                v.id, v.data_hora, v.valor_total, v.forma_pagamento, v.desconto,
                 (SELECT SUM(i.custo_unitario * i.quantidade) FROM itens_venda i WHERE i.venda_id = v.id) as val_custo,
                 SUM(CASE WHEN p.tipo = 'DINHEIRO' THEN p.valor ELSE 0 END) as val_dinheiro, 
                 SUM(CASE WHEN p.tipo = 'DÉBITO' THEN p.valor ELSE 0 END) as val_debito, 
@@ -345,10 +348,11 @@ public class VendaDAO {
         return lista;
     }
 
+    // ATUALIZADO: Traz o campo 'desconto' do banco
     public List<Venda> buscarVendasDetalhadasPorCaixa(int caixaId) {
         String sql = """
             SELECT 
-                v.id, v.data_hora, v.valor_total, v.forma_pagamento,
+                v.id, v.data_hora, v.valor_total, v.forma_pagamento, v.desconto,
                 (SELECT SUM(i.custo_unitario * i.quantidade) FROM itens_venda i WHERE i.venda_id = v.id) as val_custo,
                 SUM(CASE WHEN p.tipo = 'DINHEIRO' THEN p.valor ELSE 0 END) as val_dinheiro, 
                 SUM(CASE WHEN p.tipo = 'DÉBITO' THEN p.valor ELSE 0 END) as val_debito, 
@@ -380,6 +384,10 @@ public class VendaDAO {
         v.setDataHora(java.time.LocalDateTime.parse(rs.getString("data_hora")));
         v.setValorTotal(rs.getDouble("valor_total"));
         v.setFormaPagamento(rs.getString("forma_pagamento"));
+
+        // Mapeia o desconto (se a coluna existir)
+        try { v.setDesconto(rs.getDouble("desconto")); } catch (Exception e) { v.setDesconto(0.0); }
+
         v.setValorDinheiro(rs.getDouble("val_dinheiro"));
         v.setValorDebito(rs.getDouble("val_debito"));
         v.setValorCredito(rs.getDouble("val_credito"));

@@ -15,20 +15,33 @@ import javafx.stage.Stage;
 public class PagamentoController {
 
     @FXML private VBox rootPane;
-    @FXML private Label lblTotal, lblFalta, lblTroco, lblMetodoSelecionado;
+
+    // Labels de Totais
+    @FXML private Label lblSubTotal;      // Valor dos produtos
+    @FXML private Label lblValorDesconto; // Quanto de desconto
+    @FXML private Label lblTotalFinal;    // Subtotal - Desconto
+    @FXML private Label lblFalta;
+    @FXML private Label lblTroco;
+
+    @FXML private Label lblMetodoSelecionado;
     @FXML private TextField txtValor;
     @FXML private Button btnConcluir, btnAddPagamento;
 
-    @FXML private Button btnDinheiro, btnDebito, btnCredito, btnPix;
+    // Botões de Ação
+    @FXML private Button btnDinheiro, btnDebito, btnCredito, btnPix, btnDesconto;
 
     @FXML private TableView<Pagamento> tabelaPagamentos;
     @FXML private TableColumn<Pagamento, String> colTipoPagamento;
     @FXML private TableColumn<Pagamento, Double> colValorPagamento;
 
-    private double valorTotalVenda;
+    // Estado da Tela
+    private double valorVendaOriginal; // Valor bruto (soma dos itens)
+    private double valorDesconto = 0.0;
     private double totalPago = 0.0;
+
     private boolean confirmado = false;
-    private String metodoAtual = null;
+    private String modoAtual = null; // "PAGAMENTO" ou "DESCONTO"
+    private String tipoPagamentoSelecionado = null;
 
     private ObservableList<Pagamento> listaPagamentos = FXCollections.observableArrayList();
 
@@ -38,16 +51,18 @@ public class PagamentoController {
         colValorPagamento.setCellValueFactory(new PropertyValueFactory<>("valor"));
         tabelaPagamentos.setItems(listaPagamentos);
 
+        // Ouve teclas globais (F1, NumPad, -, etc)
         rootPane.addEventFilter(KeyEvent.KEY_PRESSED, this::processarTeclaGlobal);
 
-        // Configura a máscara que formata o dinheiro enquanto digita
         configurarMascaraMonetaria();
 
+        // Atalhos do Campo de Valor
         txtValor.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.ENTER) confirmarPagamentoAtual();
+            if (event.getCode() == KeyCode.ENTER) confirmarInputAtual();
             else if (event.getCode() == KeyCode.ESCAPE) resetarParaEstadoDeEspera();
         });
 
+        // Atalhos do Botão Concluir
         btnConcluir.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) confirmarEFechar();
         });
@@ -56,28 +71,19 @@ public class PagamentoController {
         resetarParaEstadoDeEspera();
     }
 
-    // --- MÁSCARA "ESTILO ATM" ---
     private void configurarMascaraMonetaria() {
         txtValor.textProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue == null || newValue.isEmpty()) return;
-
-            // 1. Remove tudo que não for número (ex: tira R$, pontos e virgulas)
             String digitos = newValue.replaceAll("[^0-9]", "");
-
-            // 2. Remove zeros à esquerda desnecessários
             if (digitos.isEmpty()) digitos = "0";
 
-            // 3. Transforma em valor decimal (divide por 100)
             long valorLong = Long.parseLong(digitos);
             double valorDecimal = valorLong / 100.0;
 
-            // 4. Formata visualmente (Ex: 12.5 -> "12,50")
             String formatado = String.format("%.2f", valorDecimal);
-
-            // 5. Atualiza o texto apenas se mudou (para evitar loop infinito)
             if (!newValue.equals(formatado)) {
                 txtValor.setText(formatado);
-                txtValor.positionCaret(formatado.length()); // Joga o cursor pro final
+                txtValor.positionCaret(formatado.length());
             }
         });
     }
@@ -87,25 +93,17 @@ public class PagamentoController {
 
         KeyCode code = event.getCode();
 
-        if (code == KeyCode.DIGIT1 || code == KeyCode.NUMPAD1) {
-            event.consume();
-            selecionarDinheiro();
-        } else if (code == KeyCode.DIGIT2 || code == KeyCode.NUMPAD2) {
-            event.consume();
-            selecionarDebito();
-        } else if (code == KeyCode.DIGIT3 || code == KeyCode.NUMPAD3) {
-            event.consume();
-            selecionarCredito();
-        } else if (code == KeyCode.DIGIT4 || code == KeyCode.NUMPAD4) {
-            event.consume();
-            selecionarPix();
-        } else if (code == KeyCode.ESCAPE) {
-            ((Stage) rootPane.getScene().getWindow()).close();
-        }
+        if (code == KeyCode.DIGIT1 || code == KeyCode.NUMPAD1) { event.consume(); selecionarDinheiro(); }
+        else if (code == KeyCode.DIGIT2 || code == KeyCode.NUMPAD2) { event.consume(); selecionarDebito(); }
+        else if (code == KeyCode.DIGIT3 || code == KeyCode.NUMPAD3) { event.consume(); selecionarCredito(); }
+        else if (code == KeyCode.DIGIT4 || code == KeyCode.NUMPAD4) { event.consume(); selecionarPix(); }
+        else if (code == KeyCode.MINUS || code == KeyCode.SUBTRACT) { event.consume(); selecionarDesconto(); } // Atalho '-'
+        else if (code == KeyCode.ESCAPE) { ((Stage) rootPane.getScene().getWindow()).close(); }
     }
 
     private void resetarParaEstadoDeEspera() {
-        this.metodoAtual = null;
+        this.modoAtual = null;
+        this.tipoPagamentoSelecionado = null;
 
         String styleCinza = "-fx-background-color: #bdc3c7; -fx-text-fill: white; -fx-font-weight: bold;";
         btnDinheiro.setStyle(styleCinza);
@@ -113,7 +111,10 @@ public class PagamentoController {
         btnCredito.setStyle(styleCinza);
         btnPix.setStyle(styleCinza);
 
-        lblMetodoSelecionado.setText("SELECIONE UMA FORMA (1-4)");
+        // Botão de desconto vermelho para destacar
+        btnDesconto.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold;");
+
+        lblMetodoSelecionado.setText("SELECIONE (1-4) ou DESCONTO (-)");
         lblMetodoSelecionado.setStyle("-fx-text-fill: #7f8c8d; -fx-font-weight: bold;");
 
         txtValor.setText("");
@@ -124,108 +125,147 @@ public class PagamentoController {
         rootPane.requestFocus();
     }
 
-    private void ativarModoDigitacao(String tipo, Button btnAtivo) {
-        this.metodoAtual = tipo;
+    // --- AÇÕES DOS BOTÕES ---
+    @FXML public void selecionarDinheiro() { ativarDigitacao("PAGAMENTO", "DINHEIRO", btnDinheiro, "#27ae60"); }
+    @FXML public void selecionarDebito()   { ativarDigitacao("PAGAMENTO", "DÉBITO", btnDebito, "#27ae60"); }
+    @FXML public void selecionarCredito()  { ativarDigitacao("PAGAMENTO", "CRÉDITO", btnCredito, "#27ae60"); }
+    @FXML public void selecionarPix()      { ativarDigitacao("PAGAMENTO", "PIX", btnPix, "#27ae60"); }
+    @FXML public void selecionarDesconto() { ativarDigitacao("DESCONTO", "DESCONTO", btnDesconto, "#c0392b"); }
 
-        btnAtivo.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold;");
+    private void ativarDigitacao(String modo, String tipo, Button btn, String corHex) {
+        // Se já pagou tudo, não deixa selecionar pagamento (só deixa desconto pra corrigir)
+        double totalComDesconto = valorVendaOriginal - valorDesconto;
+        if (modo.equals("PAGAMENTO") && totalPago >= (totalComDesconto - 0.01)) {
+            btnConcluir.requestFocus();
+            return;
+        }
 
-        lblMetodoSelecionado.setText("PAGANDO COM: " + tipo);
-        lblMetodoSelecionado.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;");
+        this.modoAtual = modo;
+        this.tipoPagamentoSelecionado = tipo;
+
+        // Visual
+        btn.setStyle("-fx-background-color: " + corHex + "; -fx-text-fill: white; -fx-font-weight: bold;");
+        lblMetodoSelecionado.setText(modo.equals("DESCONTO") ? "APLICAR DESCONTO:" : "PAGANDO COM: " + tipo);
+        lblMetodoSelecionado.setStyle("-fx-text-fill: " + corHex + "; -fx-font-weight: bold;");
 
         txtValor.setDisable(false);
         btnAddPagamento.setDisable(false);
-
-        double falta = valorTotalVenda - totalPago;
-
-        // Limpa e foca
         txtValor.setText("");
-        // Aqui setamos o texto vazio para obrigar o usuário a digitar ou ver o "0,00" sendo formado
-        // Se quiser que já venha preenchido com o valor total, use:
-        // txtValor.setText(String.format("%.2f", falta));
 
-        if (falta > 0) txtValor.setPromptText(String.format("%.2f", falta));
+        // Sugestão de valor (Prompt)
+        if (modo.equals("PAGAMENTO")) {
+            double falta = (valorVendaOriginal - valorDesconto) - totalPago;
+            if (falta > 0) txtValor.setPromptText(String.format("%.2f", falta));
+        } else {
+            txtValor.setPromptText("0,00");
+        }
 
         Platform.runLater(() -> txtValor.requestFocus());
     }
 
-    @FXML public void selecionarDinheiro() { if (verificarSeFaltaPagar()) ativarModoDigitacao("DINHEIRO", btnDinheiro); }
-    @FXML public void selecionarDebito()   { if (verificarSeFaltaPagar()) ativarModoDigitacao("DÉBITO", btnDebito); }
-    @FXML public void selecionarCredito()  { if (verificarSeFaltaPagar()) ativarModoDigitacao("CRÉDITO", btnCredito); }
-    @FXML public void selecionarPix()      { if (verificarSeFaltaPagar()) ativarModoDigitacao("PIX", btnPix); }
-
-    private boolean verificarSeFaltaPagar() {
-        if (totalPago >= (valorTotalVenda - 0.01)) {
-            btnConcluir.requestFocus();
-            return false;
-        }
-        return true;
-    }
-
+    // --- CONFIRMAÇÃO DO INPUT ---
     @FXML
-    public void confirmarPagamentoAtual() {
-        if (metodoAtual == null) return;
+    public void confirmarInputAtual() {
+        if (modoAtual == null) return;
 
         try {
             String texto = txtValor.getText().replace(",", ".");
-            double valor = 0.0;
+            double valorInput = 0.0;
 
-            // Se o campo estiver vazio ou zerado, assume o restante da dívida (atalho do Enter)
+            // Atalho do Enter vazio: Pega o restante automático
             if (texto.isEmpty() || texto.equals("0.00")) {
-                valor = valorTotalVenda - totalPago;
+                if (modoAtual.equals("PAGAMENTO")) {
+                    valorInput = (valorVendaOriginal - valorDesconto) - totalPago;
+                }
             } else {
-                valor = Double.parseDouble(texto);
+                valorInput = Double.parseDouble(texto);
             }
 
-            if (valor <= 0) return;
+            if (valorInput <= 0) return;
 
-            double falta = valorTotalVenda - totalPago;
-
-            boolean isCartao = metodoAtual.equals("DÉBITO") || metodoAtual.equals("CRÉDITO");
-            if (isCartao && valor > (falta + 0.01)) {
-                Alert alert = new Alert(Alert.AlertType.WARNING);
-                alert.setContentText("Cartão não aceita troco. Máximo: " + String.format("%.2f", falta));
-                alert.showAndWait();
-                // Ao voltar do erro, limpa para o usuário digitar de novo
-                txtValor.setText("");
-                Platform.runLater(() -> txtValor.requestFocus());
-                return;
-            }
-
-            listaPagamentos.add(new Pagamento(metodoAtual, valor));
-            totalPago += valor;
-
-            atualizarTotalizadores();
-
-            if (totalPago >= (valorTotalVenda - 0.01)) {
-                txtValor.setText("");
-                txtValor.setDisable(true);
-                btnAddPagamento.setDisable(true);
-                btnConcluir.setDisable(false);
-                btnConcluir.requestFocus();
+            if (modoAtual.equals("DESCONTO")) {
+                aplicarDesconto(valorInput);
             } else {
-                resetarParaEstadoDeEspera();
+                processarPagamento(valorInput);
             }
 
-        } catch (NumberFormatException e) {
-            System.out.println("Valor inválido");
+        } catch (NumberFormatException e) { }
+    }
+
+    private void aplicarDesconto(double valor) {
+        // Validação 1: Desconto maior que a venda
+        if (valor > valorVendaOriginal) {
+            mostrarAlerta("Desconto inválido", "O desconto não pode ser maior que o valor da venda.");
+            return;
+        }
+        // Validação 2: Desconto impede pagamento já feito
+        if ((valorVendaOriginal - valor) < totalPago) {
+            mostrarAlerta("Atenção", "Já existem pagamentos lançados. O novo total não pode ser menor que o valor já pago.");
+            return;
+        }
+
+        this.valorDesconto = valor; // Define o desconto
+        atualizarTotalizadores();
+
+        // CORREÇÃO DO FOCO: Se pagou tudo com o desconto, foca no Concluir
+        double totalComDesconto = valorVendaOriginal - valorDesconto;
+        if (totalPago >= (totalComDesconto - 0.01)) {
+            txtValor.setText("");
+            txtValor.setDisable(true);
+            btnAddPagamento.setDisable(true);
+            btnConcluir.setDisable(false);
+            Platform.runLater(() -> btnConcluir.requestFocus());
+        } else {
+            resetarParaEstadoDeEspera();
         }
     }
 
-    @FXML
-    public void confirmarEFechar() {
-        this.confirmado = true;
-        ((Stage) txtValor.getScene().getWindow()).close();
+    private void processarPagamento(double valor) {
+        double totalComDesconto = valorVendaOriginal - valorDesconto;
+        double falta = totalComDesconto - totalPago;
+
+        // Validação de Cartão (não gera troco)
+        boolean isCartao = tipoPagamentoSelecionado.equals("DÉBITO") || tipoPagamentoSelecionado.equals("CRÉDITO");
+        if (isCartao && valor > (falta + 0.01)) {
+            mostrarAlerta("Atenção", "Cartão não aceita troco. Máximo: R$ " + String.format("%.2f", falta));
+            txtValor.setText("");
+            return;
+        }
+
+        listaPagamentos.add(new Pagamento(tipoPagamentoSelecionado, valor));
+        totalPago += valor;
+
+        atualizarTotalizadores();
+
+        // Se finalizou, foca no concluir
+        if (totalPago >= (totalComDesconto - 0.01)) {
+            txtValor.setText("");
+            txtValor.setDisable(true);
+            btnAddPagamento.setDisable(true);
+            btnConcluir.setDisable(false);
+            Platform.runLater(() -> btnConcluir.requestFocus());
+        } else {
+            resetarParaEstadoDeEspera();
+        }
     }
 
+    // --- INICIALIZAÇÃO EXTERNA ---
     public void setValorTotal(double total) {
-        this.valorTotalVenda = total;
+        this.valorVendaOriginal = total;
+        this.valorDesconto = 0.0;
+        this.totalPago = 0.0;
+        listaPagamentos.clear();
         atualizarTotalizadores();
         resetarParaEstadoDeEspera();
     }
 
     private void atualizarTotalizadores() {
-        lblTotal.setText(String.format("R$ %.2f", valorTotalVenda));
-        double falta = valorTotalVenda - totalPago;
+        double totalFinal = valorVendaOriginal - valorDesconto;
+        double falta = totalFinal - totalPago;
+
+        lblSubTotal.setText(String.format("R$ %.2f", valorVendaOriginal));
+        lblValorDesconto.setText(String.format("R$ %.2f", valorDesconto));
+        lblTotalFinal.setText(String.format("R$ %.2f", totalFinal));
 
         if (falta > 0.01) {
             lblFalta.setText(String.format("R$ %.2f", falta));
@@ -238,6 +278,21 @@ public class PagamentoController {
         }
     }
 
+    @FXML public void confirmarEFechar() {
+        this.confirmado = true;
+        ((Stage) txtValor.getScene().getWindow()).close();
+    }
+
+    // Getters para o PDVController pegar os dados
     public boolean isConfirmado() { return confirmado; }
     public ObservableList<Pagamento> getPagamentosRealizados() { return listaPagamentos; }
+    public double getValorDesconto() { return valorDesconto; }
+
+    private void mostrarAlerta(String t, String c) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle(t);
+        alert.setHeaderText(null);
+        alert.setContentText(c);
+        alert.showAndWait();
+    }
 }

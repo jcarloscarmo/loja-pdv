@@ -36,7 +36,6 @@ public class UsuarioDAO {
         return null;
     }
 
-    // --- NOVO MÉTODO ---
     public List<String> listarNomes() {
         List<String> nomes = new ArrayList<>();
         String sql = "SELECT nome FROM usuarios ORDER BY nome";
@@ -51,5 +50,63 @@ public class UsuarioDAO {
             e.printStackTrace();
         }
         return nomes;
+    }
+
+    // --- MÉTODOS CRUD COMPLETOS PARA O ADMIN ---
+
+    public List<Usuario> listarTodos() {
+        List<Usuario> lista = new ArrayList<>();
+        String sql = "SELECT * FROM usuarios ORDER BY nome";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) {
+
+            while (rs.next()) {
+                lista.add(new Usuario(
+                        rs.getInt("id"),
+                        rs.getString("nome"),
+                        rs.getString("senha"),
+                        rs.getString("perfil")
+                ));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return lista;
+    }
+
+    public void salvar(Usuario u) throws SQLException {
+        String sql = "INSERT INTO usuarios (nome, senha, perfil) VALUES (?, ?, ?)";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, u.getNome());
+            pstmt.setString(2, u.getSenha());
+            pstmt.setString(3, u.getPerfil());
+            pstmt.executeUpdate();
+        }
+    }
+
+    public void atualizar(Usuario u) throws SQLException {
+        String sql = "UPDATE usuarios SET nome = ?, senha = ?, perfil = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, u.getNome());
+            pstmt.setString(2, u.getSenha());
+            pstmt.setString(3, u.getPerfil());
+            pstmt.setInt(4, u.getId());
+            pstmt.executeUpdate();
+        }
+    }
+
+    public void excluir(int id) throws SQLException {
+        // Não permite excluir o Admin principal (ID 1)
+        if (id == 1) throw new SQLException("Não é permitido excluir o usuário principal.");
+
+        String sql = "DELETE FROM usuarios WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, id);
+            pstmt.executeUpdate();
+        }
     }
 }

@@ -14,7 +14,6 @@ import java.util.List;
 public class RelatorioDAO {
 
     public List<ItemRelatorio> buscarVendasPorPeriodo(LocalDate inicio, LocalDate fim) {
-        // Atualizei o SQL para calcular o lucro (considerando que custo pode ser null em vendas antigas)
         String sql = """
             SELECT 
                 p.codigo, 
@@ -48,12 +47,30 @@ public class RelatorioDAO {
                         rs.getString("unidade"),
                         rs.getDouble("qtd_total"),
                         rs.getDouble("valor_total"),
-                        rs.getDouble("lucro_total") // <--- Pega o cálculo do banco
+                        rs.getDouble("lucro_total")
                 ));
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return lista;
+    }
+
+    // --- NOVO MÉTODO: Busca soma dos descontos das vendas no período ---
+    public double buscarTotalDescontosPorPeriodo(LocalDate inicio, LocalDate fim) {
+        String sql = "SELECT SUM(desconto) as total_desc FROM vendas WHERE date(data_hora) BETWEEN date(?) AND date(?)";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, inicio.toString());
+            pstmt.setString(2, fim.toString());
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDouble("total_desc");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0.0;
     }
 }

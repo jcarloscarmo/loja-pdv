@@ -34,8 +34,7 @@
 
                     <TableColumn fx:id="colTotal" text="Faturamento" prefWidth="110" style="-fx-alignment: CENTER-RIGHT; -fx-font-weight: bold;"/>
                     <TableColumn fx:id="colCusto" text="Custo Total" prefWidth="110" style="-fx-alignment: CENTER-RIGHT; -fx-text-fill: #e74c3c;"/>
-
-                    <TableColumn fx:id="colLucro" text="Lucro Real" prefWidth="110" style="-fx-alignment: CENTER-RIGHT; -fx-font-weight: bold; -fx-text-fill: #27ae60;"/>
+                    <TableColumn fx:id="colLucro" text="Margem Itens" prefWidth="110" style="-fx-alignment: CENTER-RIGHT; -fx-font-weight: bold; -fx-text-fill: #27ae60;"/>
                 </columns>
                 <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/></columnResizePolicy>
                 <placeholder><Label text="Selecione um período e clique em Filtrar"/></placeholder>
@@ -43,7 +42,7 @@
 
             <HBox alignment="CENTER_RIGHT" spacing="20" style="-fx-background-color: #ecf0f1; -fx-padding: 10; -fx-background-radius: 5;">
                 <VBox alignment="CENTER_RIGHT">
-                    <Label text="FATURAMENTO">
+                    <Label text="FATURAMENTO BRUTO">
                         <font><Font size="11"/></font>
                     </Label>
                     <Label fx:id="lblTotalPeriodo" text="R$ 0,00" textFill="#2980b9">
@@ -65,7 +64,18 @@
                 <Separator orientation="VERTICAL"/>
 
                 <VBox alignment="CENTER_RIGHT">
-                    <Label text="LUCRO LÍQUIDO">
+                    <Label text="TOTAL DESCONTOS">
+                        <font><Font size="11"/></font>
+                    </Label>
+                    <Label fx:id="lblTotalDescontos" text="R$ 0,00" textFill="#7f8c8d">
+                        <font><Font name="System Bold" size="18"/></font>
+                    </Label>
+                </VBox>
+
+                <Separator orientation="VERTICAL"/>
+
+                <VBox alignment="CENTER_RIGHT">
+                    <Label text="LUCRO LÍQUIDO REAL">
                         <font><Font size="11"/></font>
                     </Label>
                     <Label fx:id="lblLucroPeriodo" text="R$ 0,00" textFill="#27ae60">

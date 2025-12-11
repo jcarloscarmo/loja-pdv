@@ -18,10 +18,7 @@ public class ProdutosController {
 
     @FXML private TextField txtCodigo;
     @FXML private TextField txtNome;
-
-    // --- NOVO CAMPO DE CUSTO ---
     @FXML private TextField txtCusto;
-
     @FXML private TextField txtPreco;
     @FXML private TextField txtEstoque;
     @FXML private ComboBox<String> comboUnidade;
@@ -29,6 +26,7 @@ public class ProdutosController {
     @FXML private TableView<Produto> tabelaProdutos;
     @FXML private TableColumn<Produto, String> colCodigo;
     @FXML private TableColumn<Produto, String> colNome;
+    @FXML private TableColumn<Produto, Double> colCusto; // <--- NOVA COLUNA
     @FXML private TableColumn<Produto, Double> colPreco;
     @FXML private TableColumn<Produto, String> colUnidade;
     @FXML private TableColumn<Produto, Double> colEstoque;
@@ -41,6 +39,7 @@ public class ProdutosController {
     public void initialize() {
         configurarTabela();
         carregarDados();
+        sugerirCodigo(); // <--- JÁ PREENCHE O CÓDIGO AO ABRIR
 
         comboUnidade.getItems().addAll("KG", "UN");
         comboUnidade.getSelectionModel().selectFirst();
@@ -55,9 +54,37 @@ public class ProdutosController {
     private void configurarTabela() {
         colCodigo.setCellValueFactory(new PropertyValueFactory<>("codigo"));
         colNome.setCellValueFactory(new PropertyValueFactory<>("nome"));
-        colPreco.setCellValueFactory(new PropertyValueFactory<>("precoVenda"));
         colUnidade.setCellValueFactory(new PropertyValueFactory<>("unidade"));
+
+        // --- COLUNA CUSTO (FORMATADA) ---
+        colCusto.setCellValueFactory(new PropertyValueFactory<>("precoCusto"));
+        colCusto.setCellFactory(tc -> new TableCell<>() {
+            @Override protected void updateItem(Double item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) setText("-");
+                else setText(String.format("R$ %.2f", item));
+            }
+        });
+
+        // --- COLUNA PREÇO VENDA (FORMATADA) ---
+        colPreco.setCellValueFactory(new PropertyValueFactory<>("precoVenda"));
+        colPreco.setCellFactory(tc -> new TableCell<>() {
+            @Override protected void updateItem(Double item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) setText("-");
+                else setText(String.format("R$ %.2f", item));
+            }
+        });
+
+        // --- COLUNA ESTOQUE (3 CASAS DECIMAIS) ---
         colEstoque.setCellValueFactory(new PropertyValueFactory<>("estoque"));
+        colEstoque.setCellFactory(tc -> new TableCell<>() {
+            @Override protected void updateItem(Double item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) setText(null);
+                else setText(String.format("%.3f", item)); // <--- MÁSCARA APLICADA
+            }
+        });
 
         tabelaProdutos.setItems(listaProdutos);
     }
@@ -67,12 +94,18 @@ public class ProdutosController {
         listaProdutos.addAll(produtoDAO.listarTodos());
     }
 
+    // Método auxiliar para preencher o código
+    private void sugerirCodigo() {
+        if (produtoSelecionado == null) {
+            txtCodigo.setText(produtoDAO.buscarProximoCodigoDisponivel());
+        }
+    }
+
     @FXML
     public void salvarProduto() {
         try {
-            // Validações básicas
             if (txtCodigo.getText().isEmpty() || txtNome.getText().isEmpty() || txtPreco.getText().isEmpty()) {
-                mostrarAlerta("Preencha os campos obrigatórios (Código, Nome e Preço Venda)!");
+                mostrarAlerta("Preencha os campos obrigatórios!");
                 return;
             }
 
@@ -81,7 +114,6 @@ public class ProdutosController {
             double precoVenda = Double.parseDouble(txtPreco.getText().replace(",", "."));
             double estoque = Double.parseDouble(txtEstoque.getText().replace(",", "."));
 
-            // --- LÓGICA DO CUSTO ---
             double precoCusto = 0.0;
             if (txtCusto != null && !txtCusto.getText().isEmpty()) {
                 precoCusto = Double.parseDouble(txtCusto.getText().replace(",", "."));
@@ -90,15 +122,19 @@ public class ProdutosController {
             String unidade = comboUnidade.getValue();
 
             if (produtoSelecionado == null) {
-                // MODO: NOVO PRODUTO
-                // Passando o precoCusto corretamente agora
+                // Valida se o código já existe apenas se for novo
+                if(produtoDAO.buscarPorCodigo(codigo) != null) {
+                    mostrarAlerta("Este código já existe! O sistema sugeriu um novo.");
+                    sugerirCodigo();
+                    return;
+                }
+
                 Produto novo = new Produto(null, codigo, nome, precoCusto, precoVenda, unidade, estoque);
                 produtoDAO.salvar(novo);
             } else {
-                // MODO: EDITAR PRODUTO EXISTENTE
                 produtoSelecionado.setCodigo(codigo);
                 produtoSelecionado.setNome(nome);
-                produtoSelecionado.setPrecoCusto(precoCusto); // Atualiza custo
+                produtoSelecionado.setPrecoCusto(precoCusto);
                 produtoSelecionado.setPrecoVenda(precoVenda);
                 produtoSelecionado.setUnidade(unidade);
                 produtoSelecionado.setEstoque(estoque);
@@ -120,13 +156,13 @@ public class ProdutosController {
     public void excluirProduto() {
         Produto p = tabelaProdutos.getSelectionModel().getSelectedItem();
         if (p == null) {
-            mostrarAlerta("Selecione um produto na tabela para excluir.");
+            mostrarAlerta("Selecione um produto para excluir.");
             return;
         }
 
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
         confirm.setTitle("Excluir");
-        confirm.setContentText("Tem certeza que deseja excluir " + p.getNome() + "?");
+        confirm.setContentText("Deseja excluir " + p.getNome() + "?");
 
         if (confirm.showAndWait().get() == ButtonType.OK) {
             produtoDAO.deletar(p.getId());
@@ -140,11 +176,13 @@ public class ProdutosController {
         txtCodigo.setText("");
         txtNome.setText("");
         txtPreco.setText("");
-        if(txtCusto != null) txtCusto.setText(""); // Limpa o custo
+        if(txtCusto != null) txtCusto.setText("");
         txtEstoque.setText("0");
         comboUnidade.getSelectionModel().selectFirst();
         produtoSelecionado = null;
         tabelaProdutos.getSelectionModel().clearSelection();
+
+        sugerirCodigo(); // <--- Gera o próximo código ao limpar
     }
 
     private void preencherFormulario(Produto p) {
@@ -153,7 +191,6 @@ public class ProdutosController {
         txtNome.setText(p.getNome());
         txtPreco.setText(String.valueOf(p.getPrecoVenda()));
 
-        // Preenche o custo (se for null no banco, poe zero)
         if (p.getPrecoCusto() != null) {
             if(txtCusto != null) txtCusto.setText(String.valueOf(p.getPrecoCusto()));
         } else {

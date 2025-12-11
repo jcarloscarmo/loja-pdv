@@ -22,9 +22,11 @@ public class RelatorioProdutosController {
 
     @FXML private DatePicker dtInicio;
     @FXML private DatePicker dtFim;
+
     @FXML private Label lblTotalPeriodo;
     @FXML private Label lblLucroPeriodo;
-    @FXML private Label lblCustoPeriodo; // <--- NOVO
+    @FXML private Label lblCustoPeriodo;
+    @FXML private Label lblTotalDescontos; // <--- NOVO LABEL
 
     @FXML private TableView<ItemRelatorio> tabela;
     @FXML private TableColumn<ItemRelatorio, String> colCodigo;
@@ -33,7 +35,7 @@ public class RelatorioProdutosController {
     @FXML private TableColumn<ItemRelatorio, Double> colQtd;
     @FXML private TableColumn<ItemRelatorio, Double> colTotal;
     @FXML private TableColumn<ItemRelatorio, Double> colLucro;
-    @FXML private TableColumn<ItemRelatorio, Double> colCusto; // <--- NOVO
+    @FXML private TableColumn<ItemRelatorio, Double> colCusto;
 
     private RelatorioDAO relatorioDAO = new RelatorioDAO();
     private ObservableList<ItemRelatorio> lista = FXCollections.observableArrayList();
@@ -53,16 +55,35 @@ public class RelatorioProdutosController {
         LocalDate fim = dtFim.getValue();
         if (inicio == null || fim == null) return;
 
+        // 1. Carrega itens (Detalhado)
         List<ItemRelatorio> itens = relatorioDAO.buscarVendasPorPeriodo(inicio, fim);
         lista.setAll(itens);
 
-        double totalGeral = lista.stream().mapToDouble(ItemRelatorio::getValorTotal).sum();
-        double lucroGeral = lista.stream().mapToDouble(ItemRelatorio::getLucroTotal).sum();
-        double custoGeral = totalGeral - lucroGeral; // Cálculo simples
+        // 2. Busca total de descontos (Global)
+        double totalDescontos = relatorioDAO.buscarTotalDescontosPorPeriodo(inicio, fim);
 
-        lblTotalPeriodo.setText(formatar(totalGeral));
-        lblLucroPeriodo.setText(formatar(lucroGeral));
+        // 3. Cálculos Totais
+        double totalFaturamentoBruto = lista.stream().mapToDouble(ItemRelatorio::getValorTotal).sum();
+        double lucroItens = lista.stream().mapToDouble(ItemRelatorio::getLucroTotal).sum();
+
+        // Custo = Faturamento dos Itens - Lucro dos Itens
+        double custoGeral = totalFaturamentoBruto - lucroItens;
+
+        // Lucro Líquido Real = Lucro dos Itens - Descontos concedidos no caixa
+        double lucroLiquidoReal = lucroItens - totalDescontos;
+
+        // 4. Atualiza Labels
+        lblTotalPeriodo.setText(formatar(totalFaturamentoBruto));
         lblCustoPeriodo.setText(formatar(custoGeral));
+
+        // Exibe Descontos
+        if (lblTotalDescontos != null) {
+            lblTotalDescontos.setText(formatar(totalDescontos));
+            if (totalDescontos > 0) lblTotalDescontos.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
+            else lblTotalDescontos.setStyle("-fx-text-fill: #7f8c8d;");
+        }
+
+        lblLucroPeriodo.setText(formatar(lucroLiquidoReal));
     }
 
     private void configurarTabela() {
@@ -73,7 +94,6 @@ public class RelatorioProdutosController {
         colTotal.setCellValueFactory(new PropertyValueFactory<>("valorTotal"));
         colLucro.setCellValueFactory(new PropertyValueFactory<>("lucroTotal"));
 
-        // CALCULA O CUSTO NA TABELA (Faturamento - Lucro)
         colCusto.setCellValueFactory(data -> {
             double custo = data.getValue().getValorTotal() - data.getValue().getLucroTotal();
             return new SimpleObjectProperty<>(custo);
