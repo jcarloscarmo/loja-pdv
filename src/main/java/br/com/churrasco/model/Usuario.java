@@ -11,10 +11,18 @@ public class Usuario {
     private Integer id;
     private String nome;
     private String senha;
-    private String perfil; // "DONO" ou "ATENDENTE"
+    private String perfil;
 
-    // Verifica se é administrador
     public boolean isAdmin() {
-        return "DONO".equalsIgnoreCase(perfil);
+        if (perfil == null) return false;
+
+        String p = perfil.trim().toUpperCase(); // Remove espaços e põe em maiúsculo
+
+        return p.equals("ADMIN") ||
+                p.equals("DONO") ||
+                p.equals("ADMINISTRADOR") ||
+                p.equals("GERENTE") ||    // Adicionei Gerente
+                p.equals("SUPERVISOR") || // Adicionei Supervisor
+                p.equals("CHEFE");        // Adicionei Chefe
     }
 }

@@ -90,7 +90,12 @@
                                     <ComboBox fx:id="comboVelocidade" maxWidth="Infinity"/>
                                 </VBox>
                             </HBox>
-                            <Label text="* Recomendado: 9600 para leitura rápida." textFill="#7f8c8d" style="-fx-font-size: 11px;"/>
+
+                            <HBox spacing="10" alignment="CENTER_LEFT">
+                                <Button text="TESTAR LEITURA DE PESO" onAction="#testarBalanca" style="-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;"/>
+                                <Label text="* Coloque algo na balança antes de clicar." textFill="#7f8c8d" style="-fx-font-size: 11px;"/>
+                            </HBox>
+
                         </VBox>
                     </TitledPane>
                 </VBox>

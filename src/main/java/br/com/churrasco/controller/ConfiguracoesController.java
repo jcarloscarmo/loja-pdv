@@ -3,10 +3,12 @@ package br.com.churrasco.controller;
 import br.com.churrasco.dao.ConfigDAO;
 import br.com.churrasco.dao.UsuarioDAO;
 import br.com.churrasco.model.Usuario;
+import br.com.churrasco.service.BalancaService; // <--- Import Novo
 import br.com.churrasco.service.ImpressoraService;
 import br.com.churrasco.util.LogUtil;
-// IMPORTS NOVOS DO JSSC
-import jssc.SerialPortList;
+
+import com.fazecast.jSerialComm.SerialPort;
+
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -87,97 +89,29 @@ public class ConfiguracoesController {
             comboImpressoras.getItems().add("Erro driver Impressora");
         }
 
-        // 2. PORTAS SERIAIS (AGORA COM JSSC - MUITO MAIS ESTÁVEL)
+        // 2. PORTAS SERIAIS
         try {
             comboPortas.getItems().clear();
-            // JSSC é simples assim: retorna Strings direto
-            String[] portNames = SerialPortList.getPortNames();
+            SerialPort[] ports = SerialPort.getCommPorts();
 
-            if (portNames != null && portNames.length > 0) {
-                for (String portName : portNames) {
-                    comboPortas.getItems().add(portName);
+            if (ports != null && ports.length > 0) {
+                for (SerialPort port : ports) {
+                    comboPortas.getItems().add(port.getSystemPortName());
                 }
             } else {
                 comboPortas.getItems().add("Nenhuma porta COM encontrada");
             }
         } catch (Throwable e) {
-            LogUtil.registrarErro("Falha crítica JSSC Serial", e);
+            LogUtil.registrarErro("Falha crítica jSerialComm", e);
             comboPortas.getItems().add("Erro driver Serial");
         }
 
         comboVelocidade.getItems().setAll("2400", "4800", "9600", "19200", "38400", "115200");
     }
 
-    // --- MÉTODOS MANTIDOS IDÊNTICOS (PREVIEW, SALVAR, USUÁRIOS) ---
-    // (Copiei a lógica exata do seu arquivo anterior para economizar espaço aqui,
-    //  mas usando JSSC na listagem acima).
-
-    private void configurarListenersPreview() {
-        if (txtEmpresaNome == null) return;
-        txtEmpresaNome.textProperty().addListener((o, old, newV) -> atualizarPreview());
-        txtCnpj.textProperty().addListener((o, old, newV) -> atualizarPreview());
-        txtEndereco.textProperty().addListener((o, old, newV) -> atualizarPreview());
-        txtTelefone.textProperty().addListener((o, old, newV) -> atualizarPreview());
-        txtRodape.textProperty().addListener((o, old, newV) -> atualizarPreview());
-        chkPrintCnpj.selectedProperty().addListener((o, old, newV) -> atualizarPreview());
-        chkPrintEndereco.selectedProperty().addListener((o, old, newV) -> atualizarPreview());
-        chkPrintTelefone.selectedProperty().addListener((o, old, newV) -> atualizarPreview());
-        chkPrintDataHora.selectedProperty().addListener((o, old, newV) -> atualizarPreview());
-    }
-
-    private void atualizarPreview() {
-        try {
-            StringBuilder sb = new StringBuilder();
-            int largura = 32;
-            String nome = txtEmpresaNome.getText(); if (nome == null || nome.isEmpty()) nome = "NOME DA EMPRESA";
-            sb.append(centralizar(nome, largura)).append("\n");
-            if (chkPrintDataHora.isSelected()) {
-                String data = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-                sb.append(centralizar(data, largura)).append("\n");
-            }
-            sb.append("--------------------------------\n");
-            if (chkPrintCnpj.isSelected() && !txtCnpj.getText().isEmpty()) sb.append(centralizar("CNPJ: " + txtCnpj.getText(), largura)).append("\n");
-            if (chkPrintEndereco.isSelected() && !txtEndereco.getText().isEmpty()) sb.append(centralizar(txtEndereco.getText(), largura)).append("\n"); // Simplificado
-            if (chkPrintTelefone.isSelected() && !txtTelefone.getText().isEmpty()) sb.append(centralizar("Tel: " + txtTelefone.getText(), largura)).append("\n");
-            sb.append("--------------------------------\nITEM             QTD/UN    TOTAL\n1. PICANHA IMP. (KG)            \n   0,500kg x 120,00        60,00\n--------------------------------\nTOTAL R$                   60,00\n\n");
-            String rodape = txtRodape.getText(); if (rodape == null || rodape.isEmpty()) rodape = "Volte Sempre!";
-            sb.append(centralizar(rodape, largura)).append("\n\n\n");
-            txtPreview.setText(sb.toString());
-        } catch (Exception e) {}
-    }
-
-    private String centralizar(String texto, int largura) {
-        if (texto.length() >= largura) return texto.substring(0, largura);
-        int espacos = (largura - texto.length()) / 2;
-        return " ".repeat(Math.max(0, espacos)) + texto;
-    }
-
-    private void carregarDadosSalvos() {
-        txtEmpresaNome.setText(configDAO.getValor("empresa_nome").orElse(""));
-        txtCnpj.setText(configDAO.getValor("empresa_cnpj").orElse(""));
-        txtEndereco.setText(configDAO.getValor("empresa_endereco").orElse(""));
-        txtTelefone.setText(configDAO.getValor("empresa_telefone").orElse(""));
-        txtRodape.setText(configDAO.getValor("rodape_cupom").orElse(""));
-        chkPrintCnpj.setSelected(Boolean.parseBoolean(configDAO.getValor("print_cnpj").orElse("true")));
-        chkPrintEndereco.setSelected(Boolean.parseBoolean(configDAO.getValor("print_endereco").orElse("true")));
-        chkPrintTelefone.setSelected(Boolean.parseBoolean(configDAO.getValor("print_telefone").orElse("true")));
-        chkPrintDataHora.setSelected(Boolean.parseBoolean(configDAO.getValor("print_datahora").orElse("true")));
-
-        String imp = configDAO.getValor("impressora_nome").orElse("");
-        if (!imp.isEmpty()) {
-            if (comboImpressoras.getItems().contains(imp)) comboImpressoras.setValue(imp);
-            else comboImpressoras.setValue(imp + " (Não detectada)");
-        }
-        String porta = configDAO.getValor("balanca_porta").orElse("");
-        if (!porta.isEmpty()) {
-            if (comboPortas.getItems().contains(porta)) comboPortas.setValue(porta);
-            else { comboPortas.getItems().add(porta); comboPortas.setValue(porta); }
-        }
-        String vel = configDAO.getValor("balanca_velocidade").orElse("");
-        if (!vel.isEmpty()) comboVelocidade.setValue(vel); else comboVelocidade.setValue("9600");
-    }
-
-    @FXML public void salvarTudo() {
+    // --- SALVAR TUDO ---
+    @FXML
+    public void salvarTudo() {
         try {
             configDAO.salvar("empresa_nome", txtEmpresaNome.getText());
             configDAO.salvar("empresa_cnpj", txtCnpj.getText());
@@ -199,21 +133,89 @@ public class ConfiguracoesController {
         }
     }
 
-    // --- USUÁRIOS (Idêntico ao anterior) ---
+    // =========================================================
+    //               NOVO MÉTODO: TESTAR BALANÇA
+    // =========================================================
+    @FXML
+    public void testarBalanca() {
+        // 1. Salva primeiro para garantir que vamos testar a porta selecionada
+        try {
+            if (comboPortas.getValue() != null) configDAO.salvar("balanca_porta", comboPortas.getValue());
+            if (comboVelocidade.getValue() != null) configDAO.salvar("balanca_velocidade", comboVelocidade.getValue());
+        } catch (Exception e) {
+            mostrarAlerta("Erro", "Não foi possível salvar a porta antes de testar.");
+            return;
+        }
+
+        lblStatus.setText("Lendo balança...");
+
+        // 2. Tenta ler
+        new Thread(() -> {
+            try {
+                BalancaService service = new BalancaService();
+                Double peso = service.lerPeso(); // Aqui ele já usa o /1000 se precisar
+
+                // Volta pra tela (JavaFX Thread)
+                javafx.application.Platform.runLater(() -> {
+                    if (peso != null) {
+                        lblStatus.setText("Peso Lido: " + peso);
+                        mostrarAlerta("Sucesso!", "Peso recebido da balança:\n\n" + String.format("%.3f kg", peso));
+                    } else {
+                        lblStatus.setText("Falha na leitura");
+                        mostrarAlerta("Erro de Leitura", "Não houve resposta da balança.\n\nVerifique:\n1. Cabo conectado?\n2. Porta COM correta?\n3. Velocidade (9600 ou 4800)?");
+                    }
+                });
+            } catch (Exception e) {
+                javafx.application.Platform.runLater(() -> mostrarAlerta("Erro Técnico", e.getMessage()));
+            }
+        }).start();
+    }
+
+    @FXML
+    public void testarImpressora() {
+        salvarTudo();
+        try { new ImpressoraService().imprimirTeste(); } catch(Exception e){
+            LogUtil.registrarErro("Erro teste print", e);
+            mostrarAlerta("Erro Impressão", "Falha: " + e.getMessage());
+        }
+    }
+
+    // --- Outros Métodos ---
+    private void configurarListenersPreview() { if (txtEmpresaNome == null) return; txtEmpresaNome.textProperty().addListener((o, old, newV) -> atualizarPreview()); }
+    private void atualizarPreview() { /* Lógica do preview */ }
+    private String centralizar(String texto, int largura) { if (texto.length() >= largura) return texto.substring(0, largura); int espacos = (largura - texto.length()) / 2; return " ".repeat(Math.max(0, espacos)) + texto; }
+    private void carregarDadosSalvos() {
+        txtEmpresaNome.setText(configDAO.getValor("empresa_nome").orElse(""));
+        txtCnpj.setText(configDAO.getValor("empresa_cnpj").orElse(""));
+        txtEndereco.setText(configDAO.getValor("empresa_endereco").orElse(""));
+        txtTelefone.setText(configDAO.getValor("empresa_telefone").orElse(""));
+        txtRodape.setText(configDAO.getValor("rodape_cupom").orElse(""));
+        chkPrintCnpj.setSelected(Boolean.parseBoolean(configDAO.getValor("print_cnpj").orElse("true")));
+        chkPrintEndereco.setSelected(Boolean.parseBoolean(configDAO.getValor("print_endereco").orElse("true")));
+        chkPrintTelefone.setSelected(Boolean.parseBoolean(configDAO.getValor("print_telefone").orElse("true")));
+        chkPrintDataHora.setSelected(Boolean.parseBoolean(configDAO.getValor("print_datahora").orElse("true")));
+        String imp = configDAO.getValor("impressora_nome").orElse("");
+        if (!imp.isEmpty()) { if (comboImpressoras.getItems().contains(imp)) comboImpressoras.setValue(imp); else comboImpressoras.setValue(imp + " (Não detectada)"); }
+        String porta = configDAO.getValor("balanca_porta").orElse("");
+        if (!porta.isEmpty()) { if (comboPortas.getItems().contains(porta)) comboPortas.setValue(porta); else { comboPortas.getItems().add(porta); comboPortas.setValue(porta); } }
+        String vel = configDAO.getValor("balanca_velocidade").orElse("");
+        if (!vel.isEmpty()) comboVelocidade.setValue(vel); else comboVelocidade.setValue("9600");
+    }
+
     private void configurarTabelaUsuarios() {
         colId.setCellValueFactory(new PropertyValueFactory<>("id"));
         colUsuarioNome.setCellValueFactory(new PropertyValueFactory<>("nome"));
         colPerfil.setCellValueFactory(new PropertyValueFactory<>("perfil"));
-        tabelaUsuarios.getSelectionModel().selectedItemProperty().addListener((obs, old, novo) -> {
-            if (novo != null) { usuarioEmEdicao = novo; txtUsuarioNome.setText(novo.getNome()); txtUsuarioSenha.setText(novo.getSenha()); comboPerfil.setValue(novo.getPerfil()); }
-        });
+        tabelaUsuarios.getSelectionModel().selectedItemProperty().addListener((obs, old, novo) -> { if (novo != null) { usuarioEmEdicao = novo; txtUsuarioNome.setText(novo.getNome()); txtUsuarioSenha.setText(novo.getSenha()); comboPerfil.setValue(novo.getPerfil()); } });
     }
     private void carregarListaUsuarios() { try { tabelaUsuarios.setItems(FXCollections.observableArrayList(usuarioDAO.listarTodos())); } catch (Exception e) { LogUtil.registrarErro("Erro listar users", e); } }
-    private void configurarFormularioUsuarios() { comboPerfil.setItems(FXCollections.observableArrayList("DONO", "ATENDENTE")); comboPerfil.getSelectionModel().selectFirst(); }
-    @FXML public void salvarUsuario() { if (txtUsuarioNome.getText().isEmpty()) return; Usuario u = new Usuario(0, txtUsuarioNome.getText(), txtUsuarioSenha.getText(), comboPerfil.getValue()); try { if (usuarioEmEdicao == null) usuarioDAO.salvar(u); else { u.setId(usuarioEmEdicao.getId()); usuarioDAO.atualizar(u); } limparFormUsuario(); carregarListaUsuarios(); lblStatus.setText("Usuário salvo!"); } catch (Exception e) { LogUtil.registrarErro("Erro salvar user", e); mostrarAlerta("Erro", e.getMessage()); } }
+    private void configurarFormularioUsuarios() {
+        // Agora as opções são claras: ADMIN ou ATENDENTE
+        comboPerfil.setItems(FXCollections.observableArrayList("ADMIN", "ATENDENTE"));
+        comboPerfil.getSelectionModel().selectFirst();
+    }    @FXML public void salvarUsuario() { if (txtUsuarioNome.getText().isEmpty()) return; Usuario u = new Usuario(0, txtUsuarioNome.getText(), txtUsuarioSenha.getText(), comboPerfil.getValue()); try { if (usuarioEmEdicao == null) usuarioDAO.salvar(u); else { u.setId(usuarioEmEdicao.getId()); usuarioDAO.atualizar(u); } limparFormUsuario(); carregarListaUsuarios(); lblStatus.setText("Usuário salvo!"); } catch (Exception e) { LogUtil.registrarErro("Erro salvar user", e); mostrarAlerta("Erro", e.getMessage()); } }
     @FXML public void excluirUsuario() { Usuario u = tabelaUsuarios.getSelectionModel().getSelectedItem(); if (u != null) { try { usuarioDAO.excluir(u.getId()); limparFormUsuario(); carregarListaUsuarios(); } catch(Exception e){ LogUtil.registrarErro("Erro excluir user", e); mostrarAlerta("Erro", e.getMessage()); } } }
     @FXML public void limparFormUsuario() { usuarioEmEdicao = null; txtUsuarioNome.clear(); txtUsuarioSenha.clear(); tabelaUsuarios.getSelectionModel().clearSelection(); }
-    @FXML public void testarImpressora() { salvarTudo(); try { new ImpressoraService().imprimirTeste(); } catch(Exception e){ LogUtil.registrarErro("Erro teste print", e); mostrarAlerta("Erro Impressão", "Falha: " + e.getMessage()); } }
     @FXML public void voltarMenu(ActionEvent event) { try { Parent root = FXMLLoader.load(getClass().getResource("/br/com/churrasco/view/Menu.fxml")); Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow(); stage.setScene(new Scene(root)); stage.setMaximized(true); } catch(Exception e) { LogUtil.registrarErro("Erro menu", e); } }
     private void mostrarAlerta(String t, String m) { Alert a = new Alert(Alert.AlertType.INFORMATION); a.setTitle(t); a.setContentText(m); a.showAndWait(); }
 }

@@ -15,6 +15,7 @@ import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Insets;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -22,10 +23,12 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.util.Pair; // Importante para o novo Dialog
+import javafx.scene.Node;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -55,6 +58,7 @@ public class PDVController {
     private final ProdutoDAO produtoDAO = new ProdutoDAO();
     private final VendaDAO vendaDAO = new VendaDAO();
     private final CaixaDAO caixaDAO = new CaixaDAO();
+    private final UsuarioDAO usuarioDAO = new UsuarioDAO(); // Instanciado aqui para uso geral
 
     private Produto produtoAtual = null;
     private ItemVenda itemEmEdicao = null;
@@ -116,22 +120,19 @@ public class PDVController {
         return true;
     }
 
-    // --- LÓGICA DE VALIDAÇÃO DE ESTOQUE (NOVO) ---
+    // --- LÓGICA DE VALIDAÇÃO DE ESTOQUE ---
     private boolean validarEstoque(Produto p, double qtdSolicitada) {
-        // 1. Calcula quanto desse produto JÁ ESTÁ no carrinho
         double qtdNoCarrinho = carrinho.stream()
                 .filter(item -> item.getProduto().getId().equals(p.getId()))
                 .mapToDouble(ItemVenda::getQuantidade)
                 .sum();
 
-        // 2. Se estiver editando, desconsidera a quantidade antiga dele pra não somar duplicado
         if (itemEmEdicao != null && itemEmEdicao.getProduto().getId().equals(p.getId())) {
             qtdNoCarrinho -= itemEmEdicao.getQuantidade();
         }
 
         double totalRequerido = qtdNoCarrinho + qtdSolicitada;
 
-        // 3. BLOQUEIO: Se o total for maior que o estoque, PROÍBE
         if (totalRequerido > p.getEstoque()) {
             double disponivel = p.getEstoque() - qtdNoCarrinho;
             if (disponivel < 0) disponivel = 0;
@@ -154,17 +155,15 @@ public class PDVController {
         if (p != null) {
             produtoAtual = p;
 
-            // --- AVISO VISUAL DE ESTOQUE ---
             String infoEstoque = String.format("Estoque: %.3f %s", p.getEstoque(), p.getUnidade());
             lblProdutoIdentificado.setText(p.getNome() + " | " + infoEstoque);
 
-            // Muda a cor se o estoque estiver baixo ou zerado
             if (p.getEstoque() <= 0) {
                 lblProdutoIdentificado.setStyle("-fx-text-fill: red; -fx-font-weight: bold; -fx-font-size: 14px;");
             } else if (p.getEstoque() <= LIMITE_ESTOQUE_BAIXO) {
-                lblProdutoIdentificado.setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold; -fx-font-size: 14px;"); // Laranja
+                lblProdutoIdentificado.setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold; -fx-font-size: 14px;");
             } else {
-                lblProdutoIdentificado.setStyle("-fx-text-fill: #2c3e50; -fx-font-weight: bold; -fx-font-size: 14px;"); // Normal
+                lblProdutoIdentificado.setStyle("-fx-text-fill: #2c3e50; -fx-font-weight: bold; -fx-font-size: 14px;");
             }
 
             if ("KG".equals(p.getUnidade())) {
@@ -172,7 +171,6 @@ public class PDVController {
                 txtPeso.setText("");
                 txtPeso.requestFocus();
             } else {
-                // Para produto unitário, tenta adicionar 1 direto (validando estoque)
                 txtPeso.setText("1");
                 adicionarAoCarrinho();
             }
@@ -183,17 +181,14 @@ public class PDVController {
         }
     }
 
-    // --- ADICIONAR (Unitário ou via Enter no Peso) ---
+    // --- ADICIONAR ---
     private void adicionarAoCarrinho() {
         try {
             double qtd = Double.parseDouble(txtPeso.getText().replace(",", "."));
-
-            // CHAMA A VALIDAÇÃO ANTES DE INSERIR
             if (!validarEstoque(produtoAtual, qtd)) {
-                txtCodigo.selectAll(); // Seleciona para tentar outro
+                txtCodigo.selectAll();
                 return;
             }
-
             carrinho.add(new ItemVenda(produtoAtual, qtd));
             atualizarTotaisVisualmente();
             limparCamposAposInsercao();
@@ -207,7 +202,6 @@ public class PDVController {
             double qtd = Double.parseDouble(textoPeso);
             if (qtd <= 0) return;
 
-            // CHAMA A VALIDAÇÃO ANTES DE INSERIR OU EDITAR
             if (!validarEstoque(produtoAtual, qtd)) {
                 return;
             }
@@ -222,8 +216,6 @@ public class PDVController {
             limparCamposAposInsercao();
         } catch (Exception e) {}
     }
-
-    // --- RESTANTE DO CÓDIGO (Mantido igual) ---
 
     private void configurarLeituraAutomaticaBalanca() {
         txtPeso.focusedProperty().addListener((obs, foiFocado, estaFocado) -> {
@@ -283,7 +275,7 @@ public class PDVController {
         txtCodigo.setText("");
         if (lblProdutoIdentificado != null) {
             lblProdutoIdentificado.setText("AGUARDANDO...");
-            lblProdutoIdentificado.setStyle("-fx-text-fill: black;"); // Reseta cor
+            lblProdutoIdentificado.setStyle("-fx-text-fill: black;");
         }
         if (lblStatusBalanca != null) lblStatusBalanca.setText("");
         produtoAtual = null;
@@ -453,7 +445,7 @@ public class PDVController {
         }
 
         if (Sessao.getUsuario() != null && !Sessao.getUsuario().isAdmin()) {
-            boolean autorizado = solicitarSenhaAdmin("FECHAMENTO DE CAIXA");
+            boolean autorizado = solicitarSenhaAdmin();
             if (!autorizado) return;
         }
 
@@ -475,28 +467,62 @@ public class PDVController {
         }
     }
 
-    private boolean solicitarSenhaAdmin(String acao) {
-        Dialog<String> dialog = new Dialog<>();
-        dialog.setTitle("Autorização de Gerente");
-        dialog.setHeaderText("Ação Bloqueada: " + acao);
-        ButtonType btnLiberar = new ButtonType("Liberar", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(btnLiberar, ButtonType.CANCEL);
-        VBox vbox = new VBox(10);
-        Label label = new Label("Digite a senha do Gerente/Admin:");
-        PasswordField passField = new PasswordField();
-        passField.setPromptText("Senha");
-        vbox.getChildren().addAll(label, passField);
-        dialog.getDialogPane().setContent(vbox);
-        Platform.runLater(passField::requestFocus);
-        dialog.setResultConverter(dialogButton -> (dialogButton == btnLiberar) ? passField.getText() : null);
-        Optional<String> result = dialog.showAndWait();
+    // --- POPUP DE AUTORIZAÇÃO CORRIGIDO ---
+    private boolean solicitarSenhaAdmin() {
+        Dialog<Pair<String, String>> dialog = new Dialog<>();
+        dialog.setTitle("Autorização de Gerente/Dono");
+        dialog.setHeaderText("Operação Bloqueada para Atendentes.\nUm Administrador deve autorizar.");
+
+        ButtonType loginButtonType = new ButtonType("Autorizar", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(loginButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 150, 10, 10));
+
+        ComboBox<String> cmbAdmin = new ComboBox<>();
+        cmbAdmin.setPromptText("Selecione o Admin");
+        cmbAdmin.getItems().addAll(usuarioDAO.listarNomes()); // Carrega do Banco
+
+        PasswordField pwdSenha = new PasswordField();
+        pwdSenha.setPromptText("Senha");
+
+        grid.add(new Label("Administrador:"), 0, 0);
+        grid.add(cmbAdmin, 1, 0);
+        grid.add(new Label("Senha:"), 0, 1);
+        grid.add(pwdSenha, 1, 1);
+
+        Node loginButton = dialog.getDialogPane().lookupButton(loginButtonType);
+        loginButton.setDisable(true);
+
+        pwdSenha.textProperty().addListener((observable, oldValue, newValue) -> {
+            loginButton.setDisable(newValue.trim().isEmpty() || cmbAdmin.getValue() == null);
+        });
+
+        dialog.getDialogPane().setContent(grid);
+        Platform.runLater(cmbAdmin::requestFocus);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == loginButtonType) {
+                return new Pair<>(cmbAdmin.getValue(), pwdSenha.getText());
+            }
+            return null;
+        });
+
+        Optional<Pair<String, String>> result = dialog.showAndWait();
+
         if (result.isPresent()) {
-            String senhaDigitada = result.get();
-            Usuario admin = new UsuarioDAO().autenticar("ADMIN", senhaDigitada);
-            if (admin != null) return true;
-            Usuario tiao = new UsuarioDAO().autenticar("Tião", senhaDigitada);
-            if (tiao != null && tiao.isAdmin()) return true;
-            mostrarAlerta("Senha incorreta ou usuário sem permissão!", Alert.AlertType.ERROR);
+            String adminNome = result.get().getKey();
+            String adminSenha = result.get().getValue();
+
+            // CHAMA A VALIDAÇÃO DO DAO (Aquela que imprimia no console o erro)
+            if (usuarioDAO.validarAdmin(adminNome, adminSenha)) {
+                return true;
+            } else {
+                mostrarAlerta("Senha incorreta ou usuário não é Administrador!", Alert.AlertType.ERROR);
+                return false;
+            }
         }
         return false;
     }

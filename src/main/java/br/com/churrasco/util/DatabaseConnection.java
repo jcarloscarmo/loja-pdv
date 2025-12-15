@@ -1,7 +1,8 @@
-package br.com.churrasco.util;
+package br.com.churrasco.util; // VOLTAMOS PARA UTIL PARA NÃO QUEBRAR O RESTO
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -15,6 +16,7 @@ public class DatabaseConnection {
 
         if (!tabelasVerificadas) {
             try (Statement stmt = conn.createStatement()) {
+                // Otimização
                 stmt.execute("PRAGMA journal_mode=WAL;");
                 stmt.execute("PRAGMA synchronous=NORMAL;");
             }
@@ -31,9 +33,15 @@ public class DatabaseConnection {
             // 1. USUÁRIOS
             stmt.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE, senha TEXT, perfil TEXT)");
 
-            // --- AQUI ESTÁ A MÁGICA: GARANTE O ADMIN SEM SENHA ---
-            // Usamos INSERT OR REPLACE para garantir que ele exista com ID 1
-            stmt.execute("INSERT OR REPLACE INTO usuarios (id, nome, senha, perfil) VALUES (1, 'ADMIN', '', 'ADMIN')");
+            // --- LÓGICA CORRIGIDA DO ADMIN ---
+            // Verifica se a tabela está vazia. Só cria o ADMIN se for a PRIMEIRA VEZ.
+            // Se você mudar a senha depois, ele NÃO reseta mais.
+            ResultSet rsUser = stmt.executeQuery("SELECT COUNT(*) AS total FROM usuarios");
+            if (rsUser.next() && rsUser.getInt("total") == 0) {
+                // Cria o ADMIN padrão. Perfil 'ADMIN' libera tudo.
+                stmt.execute("INSERT INTO usuarios (nome, senha, perfil) VALUES ('ADMIN', 'admin', 'ADMIN')");
+            }
+            rsUser.close();
 
             // 2. PRODUTOS
             stmt.execute("CREATE TABLE IF NOT EXISTS produtos (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE, nome TEXT, preco_custo REAL, preco_venda REAL, unidade TEXT, estoque REAL)");
@@ -94,7 +102,7 @@ public class DatabaseConnection {
             // 7. CONFIGURAÇÕES
             stmt.execute("CREATE TABLE IF NOT EXISTS configuracoes (chave TEXT PRIMARY KEY, valor TEXT)");
             stmt.execute("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('empresa_nome', 'CHURRASCARIA DO MESTRE')");
-            stmt.execute("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('impressora_nome', 'POS58MM')");
+            stmt.execute("INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES ('impressora_nome', 'Generic / Text Only')");
 
             // 8. ENCOMENDAS
             stmt.execute("""
