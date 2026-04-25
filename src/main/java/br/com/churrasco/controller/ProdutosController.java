@@ -2,6 +2,7 @@ package br.com.churrasco.controller;
 
 import br.com.churrasco.dao.ProdutoDAO;
 import br.com.churrasco.model.Produto;
+import br.com.churrasco.util.Navegacao;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -204,9 +205,7 @@ public class ProdutosController {
     @FXML
     public void voltarMenu(ActionEvent event) {
         try {
-            Parent root = FXMLLoader.load(getClass().getResource("/br/com/churrasco/view/Menu.fxml"));
-            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
-            stage.setScene(new Scene(root));
+            Navegacao.trocarTela(event, "/br/com/churrasco/view/Menu.fxml", "Tiãozinho's Grill - Menu");
         } catch (Exception e) {
             e.printStackTrace();
         }

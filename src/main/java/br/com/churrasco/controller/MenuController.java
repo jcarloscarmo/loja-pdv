@@ -1,6 +1,7 @@
 package br.com.churrasco.controller;
 
 import br.com.churrasco.util.LogUtil;
+import br.com.churrasco.util.Navegacao;
 import br.com.churrasco.util.Sessao;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -91,12 +92,7 @@ public class MenuController {
 
     private void navegar(ActionEvent event, String fxmlPath, String titulo) {
         try {
-            Parent root = FXMLLoader.load(getClass().getResource(fxmlPath));
-            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
-            stage.setScene(new Scene(root));
-            stage.setTitle("Tiãozinho's Grill - " + titulo);
-            stage.setMaximized(true);
-            stage.show();
+            Navegacao.trocarTela(event, fxmlPath, "Tiãozinho's Grill - " + titulo);
         } catch (Exception e) {
             e.printStackTrace();
             LogUtil.registrarErro("Falha ao abrir tela: " + titulo, e);

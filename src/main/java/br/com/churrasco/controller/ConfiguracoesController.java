@@ -6,6 +6,7 @@ import br.com.churrasco.model.Usuario;
 import br.com.churrasco.service.BalancaService; // <--- Import Novo
 import br.com.churrasco.service.ImpressoraService;
 import br.com.churrasco.util.LogUtil;
+import br.com.churrasco.util.Navegacao;
 
 import com.fazecast.jSerialComm.SerialPort;
 
@@ -216,6 +217,6 @@ public class ConfiguracoesController {
     }    @FXML public void salvarUsuario() { if (txtUsuarioNome.getText().isEmpty()) return; Usuario u = new Usuario(0, txtUsuarioNome.getText(), txtUsuarioSenha.getText(), comboPerfil.getValue()); try { if (usuarioEmEdicao == null) usuarioDAO.salvar(u); else { u.setId(usuarioEmEdicao.getId()); usuarioDAO.atualizar(u); } limparFormUsuario(); carregarListaUsuarios(); lblStatus.setText("Usuário salvo!"); } catch (Exception e) { LogUtil.registrarErro("Erro salvar user", e); mostrarAlerta("Erro", e.getMessage()); } }
     @FXML public void excluirUsuario() { Usuario u = tabelaUsuarios.getSelectionModel().getSelectedItem(); if (u != null) { try { usuarioDAO.excluir(u.getId()); limparFormUsuario(); carregarListaUsuarios(); } catch(Exception e){ LogUtil.registrarErro("Erro excluir user", e); mostrarAlerta("Erro", e.getMessage()); } } }
     @FXML public void limparFormUsuario() { usuarioEmEdicao = null; txtUsuarioNome.clear(); txtUsuarioSenha.clear(); tabelaUsuarios.getSelectionModel().clearSelection(); }
-    @FXML public void voltarMenu(ActionEvent event) { try { Parent root = FXMLLoader.load(getClass().getResource("/br/com/churrasco/view/Menu.fxml")); Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow(); stage.setScene(new Scene(root)); stage.setMaximized(true); } catch(Exception e) { LogUtil.registrarErro("Erro menu", e); } }
+    @FXML public void voltarMenu(ActionEvent event) { try { Navegacao.trocarTela(event, "/br/com/churrasco/view/Menu.fxml", "Tiãozinho's Grill - Menu"); } catch(Exception e) { LogUtil.registrarErro("Erro menu", e); } }
     private void mostrarAlerta(String t, String m) { Alert a = new Alert(Alert.AlertType.INFORMATION); a.setTitle(t); a.setContentText(m); a.showAndWait(); }
 }

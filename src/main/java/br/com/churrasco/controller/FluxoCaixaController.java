@@ -4,6 +4,7 @@ import br.com.churrasco.dao.FinanceiroDAO;
 import br.com.churrasco.model.Despesa;
 import br.com.churrasco.model.FluxoCaixaItem;
 import br.com.churrasco.model.Venda;
+import br.com.churrasco.util.Navegacao;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -266,6 +267,6 @@ public class FluxoCaixaController {
         });
     }
 
-    @FXML public void voltarMenu(ActionEvent event) { try { ((Stage)((Node)event.getSource()).getScene().getWindow()).setScene(new Scene(FXMLLoader.load(getClass().getResource("/br/com/churrasco/view/Menu.fxml")))); } catch (Exception e) {} }
+    @FXML public void voltarMenu(ActionEvent event) { try { Navegacao.trocarTela(event, "/br/com/churrasco/view/Menu.fxml", "Tiãozinho's Grill - Menu"); } catch (Exception e) {} }
     private String formatar(double valor) { return String.format("R$ %.2f", valor); }
 }

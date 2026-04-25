@@ -2,6 +2,7 @@ package br.com.churrasco.controller;
 
 import br.com.churrasco.dao.CaixaDAO;
 import br.com.churrasco.model.Caixa;
+import br.com.churrasco.util.Navegacao;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -126,10 +127,7 @@ public class HistoricoCaixasController {
     @FXML
     public void voltarMenu(ActionEvent event) {
         try {
-            Parent root = FXMLLoader.load(getClass().getResource("/br/com/churrasco/view/Menu.fxml"));
-            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
-            stage.setScene(new Scene(root));
-            stage.setMaximized(true);
+            Navegacao.trocarTela(event, "/br/com/churrasco/view/Menu.fxml", "Tiãozinho's Grill - Menu");
         } catch (Exception e) { e.printStackTrace(); }
     }
 }

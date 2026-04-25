@@ -1,5 +1,6 @@
 package br.com.churrasco.util;
 
+import javafx.application.Platform;
 import javafx.event.Event;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
@@ -27,14 +28,23 @@ public class Navegacao {
             // Garante o título
             stage.setTitle(titulo);
 
-            // Reforça que deve estar maximizada (caso algo tenha mudado)
-            if (!stage.isMaximized()) {
-                stage.setMaximized(true);
-            }
+            garantirMaximizado(stage);
 
         } catch (IOException e) {
             e.printStackTrace();
             System.out.println("Erro ao navegar para: " + fxmlPath);
         }
+    }
+
+    public static void aplicarCena(Stage stage, Parent root, String titulo) {
+        stage.setScene(new Scene(root));
+        stage.setTitle(titulo);
+        garantirMaximizado(stage);
+        stage.show();
+    }
+
+    private static void garantirMaximizado(Stage stage) {
+        stage.setMaximized(true);
+        Platform.runLater(() -> stage.setMaximized(true));
     }
 }

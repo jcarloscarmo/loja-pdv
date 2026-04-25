@@ -3,6 +3,7 @@ package br.com.churrasco.controller;
 import br.com.churrasco.dao.UsuarioDAO;
 import br.com.churrasco.model.Usuario;
 import br.com.churrasco.util.LogUtil;
+import br.com.churrasco.util.Navegacao;
 import br.com.churrasco.util.Sessao;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
@@ -73,10 +74,7 @@ public class LoginController {
             Parent root = loader.load();
 
             Stage stageMenu = new Stage();
-            stageMenu.setTitle("PDV Churrascaria - " + Sessao.getUsuario().getNome());
-            stageMenu.setScene(new Scene(root));
-            stageMenu.setMaximized(true);
-            stageMenu.show();
+            Navegacao.aplicarCena(stageMenu, root, "PDV Churrascaria - " + Sessao.getUsuario().getNome());
         } catch (Exception e) {
             e.printStackTrace();
             mostrarAlerta("Erro ao abrir o Menu: " + e.getMessage());
