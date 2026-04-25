@@ -232,8 +232,7 @@ public class PDVController {
         lendoBalanca = true;
         Platform.runLater(() -> {
             if (lblStatusBalanca != null) {
-                lblStatusBalanca.setText("AGUARDANDO BALANÇA...");
-                lblStatusBalanca.setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold; -fx-font-size: 11px;");
+                mostrarAguardandoBalanca();
             }
         });
         Thread threadBalanca = new Thread(() -> {
@@ -244,10 +243,7 @@ public class PDVController {
                         Platform.runLater(() -> {
                             if (txtPeso.isFocused()) {
                                 txtPeso.setText(String.format("%.3f", pesoLido));
-                                if (lblStatusBalanca != null) {
-                                    lblStatusBalanca.setText("PESO LIDO! (" + String.format("%.3f", pesoLido) + "kg)");
-                                    lblStatusBalanca.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold; -fx-font-size: 11px;");
-                                }
+                                atualizarStatusBalancaComPrevia(pesoLido);
                             }
                         });
                     }
@@ -266,6 +262,25 @@ public class PDVController {
         Platform.runLater(() -> {
             if (lblStatusBalanca != null) lblStatusBalanca.setText("");
         });
+    }
+
+    private void mostrarAguardandoBalanca() {
+        if (lblStatusBalanca == null) return;
+        lblStatusBalanca.setText("AGUARDANDO BALANÇA...");
+        lblStatusBalanca.setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold; -fx-font-size: 11px;");
+    }
+
+    private void atualizarStatusBalancaComPrevia(Double peso) {
+        if (lblStatusBalanca == null) return;
+        if (peso == null || peso <= 0 || produtoAtual == null || !"KG".equals(produtoAtual.getUnidade())) {
+            mostrarAguardandoBalanca();
+            return;
+        }
+
+        double precoUnitario = produtoAtual.getPrecoVenda() != null ? produtoAtual.getPrecoVenda() : 0.0;
+        double valorPrevio = peso * precoUnitario;
+        lblStatusBalanca.setText(String.format("PESO: %.3f kg | PRÉVIA: R$ %.2f", peso, valorPrevio));
+        lblStatusBalanca.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold; -fx-font-size: 11px;");
     }
 
     private void limparCamposAposInsercao() {
@@ -532,7 +547,39 @@ public class PDVController {
     private void atualizarTotaisVisualmente() { lblTotalVenda.setText(String.format("R$ %.2f", calcularTotalCarrinho())); tabelaItens.refresh(); }
     private void cancelarEdicao() { itemEmEdicao = null; txtCodigo.setDisable(false); }
     private void configurarEventosGlobais() { txtCodigo.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) buscarProduto(); }); txtPeso.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) processarInputPeso(); }); rootPane.addEventFilter(KeyEvent.KEY_PRESSED, event -> { if (event.getText().equals("*") || event.getCode() == KeyCode.MULTIPLY) { event.consume(); abrirNovaEncomenda(null); } else if (event.getCode() == KeyCode.DIVIDE || event.getCode() == KeyCode.SLASH || event.getCode() == KeyCode.F5) { event.consume(); finalizarVenda(); } else if (event.getCode() == KeyCode.ESCAPE) { event.consume(); tentarSair(); } }); }
-    private void configurarMascaraPeso() { txtPeso.textProperty().addListener((obs, old, newValue) -> { if (newValue == null || newValue.isEmpty()) return; if (!lendoBalanca) { String digitos = newValue.replaceAll("[^0-9]", ""); if (digitos.isEmpty()) return; try { long valorBruto = Long.parseLong(digitos); String formatado = String.format("%.3f", valorBruto / 1000.0); if (!newValue.equals(formatado)) { Platform.runLater(() -> { txtPeso.setText(formatado); txtPeso.positionCaret(formatado.length()); }); } } catch (NumberFormatException e) { } } }); }
+    private void configurarMascaraPeso() {
+        txtPeso.textProperty().addListener((obs, old, newValue) -> {
+            if (newValue == null || newValue.isEmpty()) {
+                if (produtoAtual != null && "KG".equals(produtoAtual.getUnidade()) && txtPeso.isFocused()) {
+                    mostrarAguardandoBalanca();
+                }
+                return;
+            }
+
+            String digitos = newValue.replaceAll("[^0-9]", "");
+            if (digitos.isEmpty()) {
+                mostrarAguardandoBalanca();
+                return;
+            }
+
+            try {
+                long valorBruto = Long.parseLong(digitos);
+                double pesoDigitado = valorBruto / 1000.0;
+                String formatado = String.format("%.3f", pesoDigitado);
+
+                if (!newValue.equals(formatado)) {
+                    Platform.runLater(() -> {
+                        txtPeso.setText(formatado);
+                        txtPeso.positionCaret(formatado.length());
+                    });
+                }
+
+                atualizarStatusBalancaComPrevia(pesoDigitado);
+            } catch (NumberFormatException e) {
+                mostrarAguardandoBalanca();
+            }
+        });
+    }
     private void configurarTabela() { colNome.setCellValueFactory(new PropertyValueFactory<>("nomeProduto")); colQtd.setCellValueFactory(new PropertyValueFactory<>("quantidade")); colPreco.setCellValueFactory(new PropertyValueFactory<>("precoUnitario")); colTotal.setCellValueFactory(new PropertyValueFactory<>("totalItem")); colQtd.setCellFactory(tc -> new TableCell<>() { @Override protected void updateItem(Double item, boolean empty) { super.updateItem(item, empty); setText((empty || item == null) ? null : String.format("%.3f", item)); } }); colPreco.setCellFactory(tc -> new TableCell<>() { @Override protected void updateItem(Double item, boolean empty) { super.updateItem(item, empty); setText((empty || item == null) ? null : String.format("R$ %.2f", item)); } }); colTotal.setCellFactory(tc -> new TableCell<>() { @Override protected void updateItem(Double item, boolean empty) { super.updateItem(item, empty); setText((empty || item == null) ? null : String.format("R$ %.2f", item)); } }); tabelaItens.setItems(carrinho); }
     private void configurarEventosTabela() { tabelaItens.setOnKeyPressed(event -> { ItemVenda item = tabelaItens.getSelectionModel().getSelectedItem(); if (item != null && event.getCode() == KeyCode.DELETE) { carrinho.remove(item); atualizarTotaisVisualmente(); } }); }
     private void configurarSelecaoTabela() { tabelaItens.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> { if (newVal != null && "KG".equals(newVal.getProduto().getUnidade())) { itemEmEdicao = newVal; produtoAtual = newVal.getProduto(); txtPeso.setDisable(false); txtPeso.setText(String.format("%.3f", newVal.getQuantidade())); txtCodigo.setDisable(true); } }); }
