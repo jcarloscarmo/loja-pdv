@@ -1,10 +1,13 @@
 ### ARQUIVOS DO SISTEMA (MUITO IMPORTANTE) ###
 pdv.db
+pdv.db-shm
+pdv.db-wal
 sistema.log
 *.log
 
 ### Java / Maven ###
 target/
+dependency-reduced-pom.xml
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
