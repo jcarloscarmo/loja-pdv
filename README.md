@@ -9,15 +9,7 @@
   <img alt="Maven" src="https://img.shields.io/badge/Maven-Build-C71A36?style=for-the-badge&logo=apachemaven&logoColor=white" />
 </p>
 
-<p align="center">
-  <a href="#-sobre-o-projeto">Sobre</a> •
-  <a href="#-funcionalidades">Funcionalidades</a> •
-  <a href="#-tecnologias">Tecnologias</a> •
-  <a href="#-arquitetura-e-documentacao">Arquitetura</a> •
-  <a href="#-banco-de-dados">Estrutura de Dados</a> •
-  <a href="#-estado-atual">Estado Atual</a> •
-  <a href="#-autor">Autor</a>
-</p>
+
 
 ---
 
