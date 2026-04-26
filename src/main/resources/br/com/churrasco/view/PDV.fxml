@@ -77,8 +77,13 @@
 
             <TextField fx:id="txtPeso" promptText="0,000" disable="true" style="-fx-font-size: 20px; -fx-alignment: CENTER;"/>
 
-            <Label fx:id="lblStatusBalanca" text="" alignment="CENTER" maxWidth="Infinity"
-                   style="-fx-font-size: 11px; -fx-font-weight: bold;"/>
+            <VBox spacing="4" alignment="CENTER" maxWidth="Infinity"
+                  style="-fx-background-color: #f8f9f9; -fx-padding: 8; -fx-background-radius: 5; -fx-border-color: #d5dbdb; -fx-border-radius: 5;">
+                <Label fx:id="lblStatusBalanca" text="" alignment="CENTER" maxWidth="Infinity" wrapText="true" textAlignment="CENTER"
+                       style="-fx-font-size: 12px; -fx-font-weight: bold;"/>
+                <Label fx:id="lblPreviaValorBalanca" text="" alignment="CENTER" maxWidth="Infinity" wrapText="true" textAlignment="CENTER"
+                       style="-fx-text-fill: #27ae60; -fx-font-size: 24px; -fx-font-weight: bold;"/>
+            </VBox>
 
             <Region VBox.vgrow="ALWAYS"/>
 

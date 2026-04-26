@@ -48,6 +48,7 @@ public class PDVController {
     @FXML private TextField txtCodigo;
     @FXML private TextField txtPeso;
     @FXML private Label lblStatusBalanca;
+    @FXML private Label lblPreviaValorBalanca;
     @FXML private Label lblTotalVenda;
     @FXML private Label lblProdutoIdentificado;
     @FXML private Label lblNumeroVenda;
@@ -283,17 +284,19 @@ public class PDVController {
         lendoBalanca = false;
         Platform.runLater(() -> {
             if (lblStatusBalanca != null) lblStatusBalanca.setText("");
+            if (lblPreviaValorBalanca != null) lblPreviaValorBalanca.setText("");
         });
     }
 
     private void mostrarAguardandoBalanca() {
-        if (lblStatusBalanca == null) return;
+        if (lblStatusBalanca == null || lblPreviaValorBalanca == null) return;
         lblStatusBalanca.setText("AGUARDANDO BALANÇA...");
-        lblStatusBalanca.setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold; -fx-font-size: 11px;");
+        lblStatusBalanca.setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold; -fx-font-size: 12px;");
+        lblPreviaValorBalanca.setText("");
     }
 
     private void atualizarStatusBalancaComPrevia(Double peso) {
-        if (lblStatusBalanca == null) return;
+        if (lblStatusBalanca == null || lblPreviaValorBalanca == null) return;
         if (peso == null || peso <= 0 || produtoAtual == null || !"KG".equals(produtoAtual.getUnidade())) {
             mostrarAguardandoBalanca();
             return;
@@ -301,8 +304,10 @@ public class PDVController {
 
         double precoUnitario = produtoAtual.getPrecoVenda() != null ? produtoAtual.getPrecoVenda() : 0.0;
         double valorPrevio = peso * precoUnitario;
-        lblStatusBalanca.setText(String.format("PESO: %.3f kg | PRÉVIA: R$ %.2f", peso, valorPrevio));
-        lblStatusBalanca.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold; -fx-font-size: 11px;");
+        lblStatusBalanca.setText(String.format("PESO: %.3f kg", peso));
+        lblStatusBalanca.setStyle("-fx-text-fill: #2c3e50; -fx-font-weight: bold; -fx-font-size: 13px;");
+        lblPreviaValorBalanca.setText(String.format("PRÉVIA: R$ %.2f", valorPrevio));
+        lblPreviaValorBalanca.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold; -fx-font-size: 24px;");
     }
 
     private void limparCamposAposInsercao() {
@@ -315,6 +320,7 @@ public class PDVController {
             lblProdutoIdentificado.setStyle("-fx-text-fill: black;");
         }
         if (lblStatusBalanca != null) lblStatusBalanca.setText("");
+        if (lblPreviaValorBalanca != null) lblPreviaValorBalanca.setText("");
         produtoAtual = null;
         itemEmEdicao = null;
         tabelaItens.getSelectionModel().clearSelection();
