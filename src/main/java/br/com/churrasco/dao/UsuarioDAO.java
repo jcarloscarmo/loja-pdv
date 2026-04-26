@@ -50,32 +50,10 @@ public class UsuarioDAO {
         return null;
     }
 
-    // --- AQUI ESTÁ A MUDANÇA PARA DESCOBRIR O ERRO ---
     public boolean validarAdmin(String nome, String senha) {
-        System.out.println("--- INICIANDO VALIDAÇÃO DE ADMIN ---");
-        System.out.println("Tentando validar usuário: " + nome);
-
         Usuario u = autenticar(nome, senha);
-
-        if (u == null) {
-            System.out.println("ERRO: Usuário não encontrado ou senha incorreta.");
-            return false;
-        }
-
-        System.out.println("SUCESSO: Senha correta.");
-        System.out.println("Perfil carregado do banco: " + u.getPerfil());
-
-        boolean ehAdmin = u.isAdmin();
-        System.out.println("O sistema considera Admin? " + (ehAdmin ? "SIM" : "NÃO"));
-
-        if (!ehAdmin) {
-            System.out.println("MOTIVO DA RECUSA: O perfil '" + u.getPerfil() + "' não está na lista de permitidos (ADMIN, DONO, ADMINISTRADOR).");
-        }
-        System.out.println("------------------------------------");
-
-        return ehAdmin;
+        return u != null && u.isAdmin();
     }
-    // -----------------------------------------------------
 
     // 3. SALVAR NOVO
     public void salvar(Usuario u) throws Exception {

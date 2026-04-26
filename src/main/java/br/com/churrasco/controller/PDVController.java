@@ -1,5 +1,7 @@
 package br.com.churrasco.controller;
 
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import br.com.churrasco.dao.CaixaDAO;
 import br.com.churrasco.dao.ProdutoDAO;
 import br.com.churrasco.dao.UsuarioDAO;
@@ -28,12 +30,16 @@ import javafx.scene.layout.HBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Pair; // Importante para o novo Dialog
+import javafx.util.Duration;
 import javafx.scene.Node;
 
 import java.io.IOException;
+import java.time.temporal.ChronoUnit;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public class PDVController {
@@ -66,6 +72,15 @@ public class PDVController {
     private final List<Encomenda> encomendasAbertas = new ArrayList<>();
     private Integer idEncomendaEmAndamento = null;
     private volatile boolean lendoBalanca = false;
+    private final List<Button> cardsEncomenda = new ArrayList<>();
+    private final Map<Button, Encomenda> encomendasPorCard = new LinkedHashMap<>();
+    private int indiceCardEncomendaFocado = -1;
+    private Timeline timelineEncomendas;
+
+    private static final String ESTILO_CARD_ENCOMENDA = "-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 170; -fx-min-height: 68; -fx-background-radius: 5;";
+    private static final String ESTILO_CARD_ENCOMENDA_FOCADO = "-fx-background-color: #d35400; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 170; -fx-min-height: 68; -fx-background-radius: 5; -fx-border-color: #f1c40f; -fx-border-width: 3; -fx-border-radius: 5;";
+    private static final String ESTILO_CARD_ENCOMENDA_ATRASADO = "-fx-background-color: #c0392b; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 170; -fx-min-height: 68; -fx-background-radius: 5;";
+    private static final String ESTILO_CARD_ENCOMENDA_ATRASADO_FOCADO = "-fx-background-color: #a93226; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 170; -fx-min-height: 68; -fx-background-radius: 5; -fx-border-color: #f1c40f; -fx-border-width: 3; -fx-border-radius: 5;";
 
     // LIMITE PARA AVISAR QUE ESTÁ ACABANDO (Ex: 5kg ou 5 unidades)
     private static final double LIMITE_ESTOQUE_BAIXO = 5.0;
@@ -80,8 +95,15 @@ public class PDVController {
         configurarMascaraPeso();
         configurarSelecaoTabela();
         configurarLeituraAutomaticaBalanca();
+        iniciarAtualizacaoDosCardsEncomenda();
         resetarPDV();
         recuperarEncomendasPendentes();
+
+        rootPane.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null && newScene.getWindow() != null) {
+                newScene.getWindow().setOnHidden(event -> pararAtualizacaoDosCardsEncomenda());
+            }
+        });
 
         if (Sessao.getUsuario() != null) {
             Platform.runLater(() -> {
@@ -394,6 +416,9 @@ public class PDVController {
     private void recuperarEncomendasPendentes() {
         boxEncomendas.getChildren().clear();
         encomendasAbertas.clear();
+        cardsEncomenda.clear();
+        encomendasPorCard.clear();
+        indiceCardEncomendaFocado = -1;
         Thread t = new Thread(() -> {
             try {
                 List<Encomenda> pendentes = vendaDAO.buscarTodasEncomendasPendentes();
@@ -413,9 +438,30 @@ public class PDVController {
     private void criarCardEncomenda(Encomenda encomenda) {
         if (boxEncomendas == null) return;
         String idTexto = (encomenda.getId() != null) ? "#" + encomenda.getId() : "";
-        Button btnCard = new Button("ENC " + idTexto + "\n" + encomenda.getNomeCliente());
-        btnCard.setStyle("-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 120; -fx-min-height: 50; -fx-background-radius: 5;");
+        Button btnCard = new Button();
+        btnCard.setStyle(ESTILO_CARD_ENCOMENDA);
+        btnCard.setFocusTraversable(true);
         HBox.setMargin(btnCard, new javafx.geometry.Insets(0, 5, 0, 5));
+        btnCard.focusedProperty().addListener((obs, oldVal, focused) -> {
+            if (focused) {
+                indiceCardEncomendaFocado = cardsEncomenda.indexOf(btnCard);
+            }
+            atualizarEstiloCardsEncomenda();
+        });
+        btnCard.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.LEFT) {
+                event.consume();
+                moverFocoEncomenda(-1);
+            } else if (event.getCode() == KeyCode.RIGHT) {
+                event.consume();
+                moverFocoEncomenda(1);
+            } else if (event.getCode() == KeyCode.UP || event.getCode() == KeyCode.DOWN) {
+                event.consume();
+            } else if (event.getCode() == KeyCode.ESCAPE) {
+                event.consume();
+                sairModoEncomendas();
+            }
+        });
         btnCard.setOnAction(e -> {
             ButtonType btnAbrir = new ButtonType("ABRIR/RESGATAR", ButtonBar.ButtonData.OK_DONE);
             ButtonType btnCancelar = new ButtonType("CANCELAR PEDIDO", ButtonBar.ButtonData.OTHER);
@@ -433,19 +479,44 @@ public class PDVController {
                     if (encomenda.getItens() != null) carrinho.setAll(encomenda.getItens());
                     this.idEncomendaEmAndamento = encomenda.getId();
                     atualizarTotaisVisualmente(); atualizarNumeroVenda();
-                    encomendasAbertas.remove(encomenda); boxEncomendas.getChildren().remove(btnCard);
+                    removerCardEncomenda(encomenda, btnCard);
                     mostrarAlerta("Encomenda aberta! Itens carregados.", Alert.AlertType.INFORMATION);
                 } else if (result.get() == btnCancelar) {
                     Alert confirmacao = new Alert(Alert.AlertType.CONFIRMATION, "Deseja cancelar esta encomenda? O estoque será devolvido.", ButtonType.YES, ButtonType.NO);
                     if (confirmacao.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
                         vendaDAO.cancelarEncomenda(encomenda.getId());
-                        encomendasAbertas.remove(encomenda); boxEncomendas.getChildren().remove(btnCard);
+                        removerCardEncomenda(encomenda, btnCard);
                         mostrarAlerta("Encomenda cancelada e estoque estornado.", Alert.AlertType.INFORMATION);
                     }
                 }
             }
         });
+        cardsEncomenda.add(btnCard);
+        encomendasPorCard.put(btnCard, encomenda);
         boxEncomendas.getChildren().add(btnCard);
+        atualizarConteudoCardEncomenda(btnCard, encomenda);
+        atualizarEstiloCardsEncomenda();
+    }
+
+    private void removerCardEncomenda(Encomenda encomenda, Button btnCard) {
+        encomendasAbertas.remove(encomenda);
+        boxEncomendas.getChildren().remove(btnCard);
+        int indiceRemovido = cardsEncomenda.indexOf(btnCard);
+        cardsEncomenda.remove(btnCard);
+        encomendasPorCard.remove(btnCard);
+
+        if (cardsEncomenda.isEmpty()) {
+            indiceCardEncomendaFocado = -1;
+            return;
+        }
+
+        if (indiceCardEncomendaFocado >= cardsEncomenda.size()) {
+            indiceCardEncomendaFocado = cardsEncomenda.size() - 1;
+        } else if (indiceRemovido >= 0 && indiceCardEncomendaFocado > indiceRemovido) {
+            indiceCardEncomendaFocado--;
+        }
+
+        atualizarEstiloCardsEncomenda();
     }
 
     @FXML
@@ -542,11 +613,11 @@ public class PDVController {
         return false;
     }
 
-    private void resetarPDV() { carrinho.clear(); atualizarTotaisVisualmente(); limparCamposAposInsercao(); idEncomendaEmAndamento = null; atualizarNumeroVenda(); if (lblProdutoIdentificado != null) lblProdutoIdentificado.setText("CAIXA LIVRE"); }
+    private void resetarPDV() { carrinho.clear(); atualizarTotaisVisualmente(); limparCamposAposInsercao(); idEncomendaEmAndamento = null; atualizarNumeroVenda(); if (lblProdutoIdentificado != null) lblProdutoIdentificado.setText("CAIXA LIVRE"); sairModoEncomendas(); }
     private void atualizarNumeroVenda() { try { int id = (idEncomendaEmAndamento != null) ? idEncomendaEmAndamento : vendaDAO.getProximoIdVenda(); if (lblNumeroVenda != null) lblNumeroVenda.setText("VENDA Nº " + id); } catch (Exception e) {} }
     private void atualizarTotaisVisualmente() { lblTotalVenda.setText(String.format("R$ %.2f", calcularTotalCarrinho())); tabelaItens.refresh(); }
     private void cancelarEdicao() { itemEmEdicao = null; txtCodigo.setDisable(false); }
-    private void configurarEventosGlobais() { txtCodigo.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) buscarProduto(); }); txtPeso.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) processarInputPeso(); }); rootPane.addEventFilter(KeyEvent.KEY_PRESSED, event -> { if (event.getText().equals("*") || event.getCode() == KeyCode.MULTIPLY) { event.consume(); abrirNovaEncomenda(null); } else if (event.getCode() == KeyCode.DIVIDE || event.getCode() == KeyCode.SLASH || event.getCode() == KeyCode.F5) { event.consume(); finalizarVenda(); } else if (event.getCode() == KeyCode.ESCAPE) { event.consume(); tentarSair(); } }); }
+    private void configurarEventosGlobais() { txtCodigo.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) buscarProduto(); }); txtPeso.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) processarInputPeso(); }); rootPane.addEventFilter(KeyEvent.KEY_PRESSED, event -> { if (event.getText().equals("*") || event.getCode() == KeyCode.MULTIPLY) { event.consume(); abrirNovaEncomenda(null); } else if (event.getCode() == KeyCode.SUBTRACT || event.getCode() == KeyCode.MINUS) { event.consume(); entrarModoEncomendas(); } else if (event.getCode() == KeyCode.DIVIDE || event.getCode() == KeyCode.SLASH || event.getCode() == KeyCode.F5) { event.consume(); finalizarVenda(); } else if (event.getCode() == KeyCode.ESCAPE) { event.consume(); if (indiceCardEncomendaFocado >= 0) sairModoEncomendas(); else tentarSair(); } }); }
     private void configurarMascaraPeso() {
         txtPeso.textProperty().addListener((obs, old, newValue) -> {
             if (newValue == null || newValue.isEmpty()) {
@@ -583,6 +654,17 @@ public class PDVController {
     private void configurarTabela() { colNome.setCellValueFactory(new PropertyValueFactory<>("nomeProduto")); colQtd.setCellValueFactory(new PropertyValueFactory<>("quantidade")); colPreco.setCellValueFactory(new PropertyValueFactory<>("precoUnitario")); colTotal.setCellValueFactory(new PropertyValueFactory<>("totalItem")); colQtd.setCellFactory(tc -> new TableCell<>() { @Override protected void updateItem(Double item, boolean empty) { super.updateItem(item, empty); setText((empty || item == null) ? null : String.format("%.3f", item)); } }); colPreco.setCellFactory(tc -> new TableCell<>() { @Override protected void updateItem(Double item, boolean empty) { super.updateItem(item, empty); setText((empty || item == null) ? null : String.format("R$ %.2f", item)); } }); colTotal.setCellFactory(tc -> new TableCell<>() { @Override protected void updateItem(Double item, boolean empty) { super.updateItem(item, empty); setText((empty || item == null) ? null : String.format("R$ %.2f", item)); } }); tabelaItens.setItems(carrinho); }
     private void configurarEventosTabela() { tabelaItens.setOnKeyPressed(event -> { ItemVenda item = tabelaItens.getSelectionModel().getSelectedItem(); if (item != null && event.getCode() == KeyCode.DELETE) { carrinho.remove(item); atualizarTotaisVisualmente(); } }); }
     private void configurarSelecaoTabela() { tabelaItens.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> { if (newVal != null && "KG".equals(newVal.getProduto().getUnidade())) { itemEmEdicao = newVal; produtoAtual = newVal.getProduto(); txtPeso.setDisable(false); txtPeso.setText(String.format("%.3f", newVal.getQuantidade())); txtCodigo.setDisable(true); } }); }
+    private void entrarModoEncomendas() { if (cardsEncomenda.isEmpty()) { mostrarAlerta("Nao existem encomendas pendentes para abrir.", Alert.AlertType.INFORMATION); return; } if (indiceCardEncomendaFocado < 0 || indiceCardEncomendaFocado >= cardsEncomenda.size()) indiceCardEncomendaFocado = 0; focarCardEncomenda(indiceCardEncomendaFocado); }
+    private void sairModoEncomendas() { indiceCardEncomendaFocado = -1; atualizarEstiloCardsEncomenda(); Platform.runLater(() -> { txtCodigo.requestFocus(); txtCodigo.selectAll(); }); }
+    private void moverFocoEncomenda(int delta) { if (cardsEncomenda.isEmpty()) return; if (indiceCardEncomendaFocado < 0) indiceCardEncomendaFocado = 0; else indiceCardEncomendaFocado = Math.floorMod(indiceCardEncomendaFocado + delta, cardsEncomenda.size()); focarCardEncomenda(indiceCardEncomendaFocado); }
+    private void focarCardEncomenda(int indice) { if (indice < 0 || indice >= cardsEncomenda.size()) return; indiceCardEncomendaFocado = indice; atualizarEstiloCardsEncomenda(); Button card = cardsEncomenda.get(indice); Platform.runLater(card::requestFocus); }
+    private void atualizarEstiloCardsEncomenda() { for (int i = 0; i < cardsEncomenda.size(); i++) { Button card = cardsEncomenda.get(i); Encomenda encomenda = encomendasPorCard.get(card); boolean focado = i == indiceCardEncomendaFocado || card.isFocused(); boolean atrasado = encomenda != null && isEncomendaAtrasada(encomenda); if (atrasado) card.setStyle(focado ? ESTILO_CARD_ENCOMENDA_ATRASADO_FOCADO : ESTILO_CARD_ENCOMENDA_ATRASADO); else card.setStyle(focado ? ESTILO_CARD_ENCOMENDA_FOCADO : ESTILO_CARD_ENCOMENDA); } }
+    private void iniciarAtualizacaoDosCardsEncomenda() { if (timelineEncomendas != null) timelineEncomendas.stop(); timelineEncomendas = new Timeline(new KeyFrame(Duration.seconds(1), event -> atualizarCardsEncomenda())); timelineEncomendas.setCycleCount(Timeline.INDEFINITE); timelineEncomendas.play(); }
+    private void pararAtualizacaoDosCardsEncomenda() { if (timelineEncomendas != null) timelineEncomendas.stop(); }
+    private void atualizarCardsEncomenda() { for (Button card : cardsEncomenda) { Encomenda encomenda = encomendasPorCard.get(card); if (encomenda != null) atualizarConteudoCardEncomenda(card, encomenda); } atualizarEstiloCardsEncomenda(); }
+    private void atualizarConteudoCardEncomenda(Button card, Encomenda encomenda) { String idTexto = (encomenda.getId() != null) ? "#" + encomenda.getId() : ""; card.setText("ENC " + idTexto + "\n" + encomenda.getNomeCliente() + " | " + formatarStatusRetirada(encomenda)); }
+    private boolean isEncomendaAtrasada(Encomenda encomenda) { return encomenda.getDataRetirada() != null && !encomenda.getDataRetirada().isAfter(LocalDateTime.now()); }
+    private String formatarStatusRetirada(Encomenda encomenda) { if (encomenda.getDataRetirada() == null) return "sem horario"; long minutos = ChronoUnit.MINUTES.between(LocalDateTime.now(), encomenda.getDataRetirada()); if (minutos > 0) return "retira em " + minutos + " min"; return "atrasado ha " + Math.abs(minutos) + " min"; }
     @FXML public void tentarSair() { voltarAoMenu(); }
     private void voltarAoMenu() { try { ((Stage) rootPane.getScene().getWindow()).close(); FXMLLoader loader = new FXMLLoader(getClass().getResource("/br/com/churrasco/view/Menu.fxml")); Parent root = loader.load(); Stage stage = new Stage(); stage.setScene(new Scene(root)); stage.setMaximized(true); stage.setTitle("Menu Principal"); stage.show(); } catch (Exception e) { e.printStackTrace(); } }
     private PagamentoController abrirModalPagamento() throws IOException { FXMLLoader l = new FXMLLoader(getClass().getResource("/br/com/churrasco/view/Pagamento.fxml")); Parent r = l.load(); PagamentoController c = l.getController(); c.setValorTotal(calcularTotalCarrinho()); Stage s = new Stage(); s.setScene(new Scene(r)); s.initModality(Modality.APPLICATION_MODAL); s.showAndWait(); return c; }

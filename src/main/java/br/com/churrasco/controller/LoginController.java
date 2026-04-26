@@ -28,11 +28,8 @@ public class LoginController {
 
     @FXML
     public void initialize() {
-        // Carrega os usuários do banco (ADMIN, Tião, Clara...)
         List<String> nomes = usuarioDAO.listarNomes();
         comboUsuario.setItems(FXCollections.observableArrayList(nomes));
-
-        // Seleciona o primeiro da lista automaticamente
         if (!nomes.isEmpty()) {
             comboUsuario.getSelectionModel().selectFirst();
         }
@@ -43,25 +40,20 @@ public class LoginController {
         String nome = comboUsuario.getValue();
         String senha = txtSenha.getText();
 
-        // CORREÇÃO: Removido "|| senha.isEmpty()"
-        // Agora permitimos senha em branco (para o caso do ADMIN inicial)
         if (nome == null || nome.isEmpty()) {
             mostrarAlerta("Selecione um usuário.");
             return;
         }
 
-        // Tenta autenticar no banco
         Usuario usuario = usuarioDAO.autenticar(nome, senha);
 
         if (usuario != null) {
             Sessao.setUsuario(usuario);
-            // LogUtil opcional, se não tiver a classe LogUtil pode comentar a linha abaixo
             try { LogUtil.registrar(usuario.getNome(), "Realizou login no sistema."); } catch (Exception e) {}
 
             abrirMenuPrincipal(event);
         } else {
-            // Se falhar
-            mostrarAlerta("Senha incorreta!");
+            mostrarAlerta("Usuario ou senha incorretos.");
         }
     }
 

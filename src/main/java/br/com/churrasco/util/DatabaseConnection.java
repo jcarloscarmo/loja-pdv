@@ -1,5 +1,13 @@
 package br.com.churrasco.util; // VOLTAMOS PARA UTIL PARA NÃO QUEBRAR O RESTO
 
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -8,7 +16,10 @@ import java.sql.Statement;
 
 public class DatabaseConnection {
 
-    private static final String URL = "jdbc:sqlite:pdv.db";
+    private static final String APP_DIR_NAME = "PDVChurrasco";
+    private static final String DB_FILE_NAME = "pdv.db";
+    private static final Path DATABASE_PATH = inicializarCaminhoBanco();
+    private static final String URL = "jdbc:sqlite:" + DATABASE_PATH.toAbsolutePath();
     private static boolean tabelasVerificadas = false;
 
     public static Connection getConnection() throws SQLException {
@@ -27,19 +38,90 @@ public class DatabaseConnection {
         return conn;
     }
 
+    public static Path getDatabasePath() {
+        return DATABASE_PATH;
+    }
+
+    private static Path inicializarCaminhoBanco() {
+        Path destino = obterDiretorioPersistente().resolve(DB_FILE_NAME);
+
+        try {
+            Files.createDirectories(destino.getParent());
+            migrarBancoLegadoSeNecessario(destino);
+        } catch (IOException e) {
+            throw new IllegalStateException("Nao foi possivel preparar o banco de dados em " + destino, e);
+        }
+
+        return destino;
+    }
+
+    private static Path obterDiretorioPersistente() {
+        String appData = System.getenv("APPDATA");
+        if (appData != null && !appData.isBlank()) {
+            return Paths.get(appData, APP_DIR_NAME);
+        }
+
+        return Paths.get(System.getProperty("user.home"), "." + APP_DIR_NAME);
+    }
+
+    private static void migrarBancoLegadoSeNecessario(Path destino) throws IOException {
+        if (Files.exists(destino)) {
+            return;
+        }
+
+        for (Path diretorioLegado : listarDiretoriosLegados()) {
+            Path bancoLegado = diretorioLegado.resolve(DB_FILE_NAME).toAbsolutePath().normalize();
+            if (!Files.exists(bancoLegado) || bancoLegado.equals(destino.toAbsolutePath().normalize())) {
+                continue;
+            }
+
+            Files.copy(bancoLegado, destino, StandardCopyOption.REPLACE_EXISTING);
+            copiarSeExistir(diretorioLegado.resolve(DB_FILE_NAME + "-wal").toAbsolutePath().normalize(), destino.resolveSibling(DB_FILE_NAME + "-wal"));
+            copiarSeExistir(diretorioLegado.resolve(DB_FILE_NAME + "-shm").toAbsolutePath().normalize(), destino.resolveSibling(DB_FILE_NAME + "-shm"));
+            break;
+        }
+    }
+
+    private static Set<Path> listarDiretoriosLegados() {
+        Set<Path> diretorios = new LinkedHashSet<>();
+        diretorios.add(Paths.get("").toAbsolutePath().normalize());
+
+        String userDir = System.getProperty("user.dir");
+        if (userDir != null && !userDir.isBlank()) {
+            diretorios.add(Paths.get(userDir).toAbsolutePath().normalize());
+        }
+
+        try {
+            Path origemCodigo = Paths.get(DatabaseConnection.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            Path pastaCodigo = Files.isDirectory(origemCodigo) ? origemCodigo : origemCodigo.getParent();
+            if (pastaCodigo != null) {
+                diretorios.add(pastaCodigo.toAbsolutePath().normalize());
+                if (pastaCodigo.getParent() != null) {
+                    diretorios.add(pastaCodigo.getParent().toAbsolutePath().normalize());
+                }
+            }
+        } catch (URISyntaxException | NullPointerException ignored) {
+        }
+
+        return diretorios;
+    }
+
+    private static void copiarSeExistir(Path origem, Path destino) throws IOException {
+        if (Files.exists(origem)) {
+            Files.copy(origem, destino, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
     private static void verificarEAtualizarTabelas(Connection conn) {
         try (Statement stmt = conn.createStatement()) {
 
             // 1. USUÁRIOS
             stmt.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE, senha TEXT, perfil TEXT)");
 
-            // --- LÓGICA CORRIGIDA DO ADMIN ---
-            // Verifica se a tabela está vazia. Só cria o ADMIN se for a PRIMEIRA VEZ.
-            // Se você mudar a senha depois, ele NÃO reseta mais.
+            // No primeiro acesso, garante um admin padrao sem senha.
             ResultSet rsUser = stmt.executeQuery("SELECT COUNT(*) AS total FROM usuarios");
             if (rsUser.next() && rsUser.getInt("total") == 0) {
-                // Cria o ADMIN padrão. Perfil 'ADMIN' libera tudo.
-                stmt.execute("INSERT INTO usuarios (nome, senha, perfil) VALUES ('ADMIN', 'admin', 'ADMIN')");
+                stmt.execute("INSERT INTO usuarios (nome, senha, perfil) VALUES ('ADMIN', '', 'ADMIN')");
             }
             rsUser.close();
 

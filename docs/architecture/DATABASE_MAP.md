@@ -2,7 +2,7 @@
 
 ## Overview
 
-O banco da aplicacao e SQLite e fica em `pdv.db` na raiz do projeto.
+O banco da aplicacao e SQLite e fica em `pdv.db` em um diretorio persistente do usuario, atualmente `%APPDATA%/PDVChurrasco`.
 
 A criacao de tabelas e alteracoes de schema sao centralizadas em:
 - `src/main/java/br/com/churrasco/util/DatabaseConnection.java`
@@ -37,7 +37,7 @@ Uso:
 - cadastro de usuarios na tela de configuracoes
 
 Regras observadas:
-- admin padrao e criado se a tabela estiver vazia
+- admin padrao `ADMIN` sem senha e criado se a tabela estiver vazia
 - senha e armazenada em texto puro
 
 ## `produtos`

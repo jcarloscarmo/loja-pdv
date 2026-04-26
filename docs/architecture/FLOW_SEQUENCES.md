@@ -14,8 +14,9 @@ Sequencia:
 5. abertura de `Login.fxml`
 
 Observacoes:
-- o banco `pdv.db` fica na raiz do projeto
-- o usuario `ADMIN / admin` e criado apenas quando a tabela `usuarios` esta vazia
+- o banco `pdv.db` passa a ficar em um diretorio persistente do usuario em `%APPDATA%/PDVChurrasco`
+- se existir um `pdv.db` legado ao lado da aplicacao, ele e migrado automaticamente antes da criacao de um novo banco
+- o usuario `ADMIN` sem senha e criado apenas quando a tabela `usuarios` esta vazia
 
 ## 2. Login -> Menu
 

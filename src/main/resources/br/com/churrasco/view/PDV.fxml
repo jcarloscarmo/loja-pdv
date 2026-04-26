@@ -24,6 +24,9 @@
                 <Button text="NOVA ENCOMENDA (*)" onAction="#abrirNovaEncomenda"
                         style="-fx-background-color: #8e44ad; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;"/>
 
+                <Label text="PEDIDOS (-)" textFill="#ecf0f1"
+                       style="-fx-font-weight: bold; -fx-background-color: #7f8c8d; -fx-background-radius: 5; -fx-padding: 8 12 8 12;"/>
+
                 <Button text="FECHAR CAIXA" onAction="#acaoFecharCaixa"
                         style="-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand;"/>
 
