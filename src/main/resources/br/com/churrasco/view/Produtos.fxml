@@ -45,6 +45,9 @@
             <Label text="Estoque Inicial"/>
             <TextField fx:id="txtEstoque" text="0"/>
 
+            <CheckBox fx:id="chkExibirNoPdv" text="Exibir no PDV"/>
+            <CheckBox fx:id="chkAgruparEmProteina" text="Exibir agrupado em Proteina"/>
+
             <Region VBox.vgrow="ALWAYS"/>
 
             <HBox spacing="10">

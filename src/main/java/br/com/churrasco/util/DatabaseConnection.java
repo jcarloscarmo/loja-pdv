@@ -126,7 +126,9 @@ public class DatabaseConnection {
             rsUser.close();
 
             // 2. PRODUTOS
-            stmt.execute("CREATE TABLE IF NOT EXISTS produtos (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE, nome TEXT, preco_custo REAL, preco_venda REAL, unidade TEXT, estoque REAL)");
+            stmt.execute("CREATE TABLE IF NOT EXISTS produtos (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE, nome TEXT, preco_custo REAL, preco_venda REAL, unidade TEXT, estoque REAL, exibir_no_pdv INTEGER DEFAULT 0, agrupar_em_proteina INTEGER DEFAULT 0)");
+            try { stmt.execute("ALTER TABLE produtos ADD COLUMN exibir_no_pdv INTEGER DEFAULT 0"); } catch (SQLException e) {}
+            try { stmt.execute("ALTER TABLE produtos ADD COLUMN agrupar_em_proteina INTEGER DEFAULT 0"); } catch (SQLException e) {}
 
             // 3. CAIXAS
             stmt.execute("""

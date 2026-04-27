@@ -34,6 +34,7 @@ import javafx.util.Duration;
 import javafx.scene.Node;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.time.temporal.ChronoUnit;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -52,6 +53,7 @@ public class PDVController {
     @FXML private Label lblTotalVenda;
     @FXML private Label lblProdutoIdentificado;
     @FXML private Label lblNumeroVenda;
+    @FXML private Label lblResumoEstoquePdv;
     @FXML private Button btnFinalizar;
     @FXML private HBox boxEncomendas;
     @FXML private TableView<ItemVenda> tabelaItens;
@@ -99,6 +101,7 @@ public class PDVController {
         iniciarAtualizacaoDosCardsEncomenda();
         resetarPDV();
         recuperarEncomendasPendentes();
+        atualizarResumoEstoquePdv();
 
         rootPane.sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (newScene != null && newScene.getWindow() != null) {
@@ -207,6 +210,10 @@ public class PDVController {
     // --- ADICIONAR ---
     private void adicionarAoCarrinho() {
         try {
+            if (produtoAtual == null) {
+                mostrarAlerta("Selecione um produto antes de adicionar.", Alert.AlertType.WARNING);
+                return;
+            }
             double qtd = Double.parseDouble(txtPeso.getText().replace(",", "."));
             if (!validarEstoque(produtoAtual, qtd)) {
                 txtCodigo.selectAll();
@@ -215,11 +222,19 @@ public class PDVController {
             carrinho.add(new ItemVenda(produtoAtual, qtd));
             atualizarTotaisVisualmente();
             limparCamposAposInsercao();
-        } catch (Exception e) {}
+        } catch (NumberFormatException e) {
+            mostrarAlerta("Quantidade/peso invalido.", Alert.AlertType.WARNING);
+        } catch (Exception e) {
+            mostrarAlerta("Nao foi possivel adicionar o item: " + e.getMessage(), Alert.AlertType.ERROR);
+        }
     }
 
     private void processarInputPeso() {
         try {
+            if (produtoAtual == null) {
+                mostrarAlerta("Selecione um produto antes de informar o peso.", Alert.AlertType.WARNING);
+                return;
+            }
             String textoPeso = txtPeso.getText().replace(",", ".");
             if (textoPeso.isEmpty()) return;
             double qtd = Double.parseDouble(textoPeso);
@@ -237,7 +252,11 @@ public class PDVController {
             }
             atualizarTotaisVisualmente();
             limparCamposAposInsercao();
-        } catch (Exception e) {}
+        } catch (NumberFormatException e) {
+            mostrarAlerta("Peso invalido. Informe um valor numerico.", Alert.AlertType.WARNING);
+        } catch (Exception e) {
+            mostrarAlerta("Nao foi possivel atualizar o item: " + e.getMessage(), Alert.AlertType.ERROR);
+        }
     }
 
     private void configurarLeituraAutomaticaBalanca() {
@@ -310,6 +329,18 @@ public class PDVController {
         lblPreviaValorBalanca.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold; -fx-font-size: 24px;");
     }
 
+    private void mostrarEdicaoItemKg() {
+        if (lblStatusBalanca != null) {
+            lblStatusBalanca.setText("EDITANDO ITEM EM KG");
+            lblStatusBalanca.setStyle("-fx-text-fill: #8e44ad; -fx-font-weight: bold; -fx-font-size: 12px;");
+        }
+
+        if (lblPreviaValorBalanca != null && produtoAtual != null) {
+            lblPreviaValorBalanca.setText(capitalizarPrimeiraLetra(produtoAtual.getNome()));
+            lblPreviaValorBalanca.setStyle("-fx-text-fill: #8e44ad; -fx-font-weight: bold; -fx-font-size: 18px;");
+        }
+    }
+
     private void limparCamposAposInsercao() {
         pararLoopBalanca();
         txtPeso.setText("");
@@ -372,6 +403,7 @@ public class PDVController {
             List<Pagamento> pagsCopia = new ArrayList<>(pagamentos);
             new Thread(() -> impressoraService.imprimirCupom(venda, itensCopia, pagsCopia)).start();
             resetarPDV();
+            atualizarResumoEstoquePdv();
             mostrarAlerta("Venda Nº " + idVendaSalva + " realizada com sucesso!", Alert.AlertType.INFORMATION);
         } catch (Exception e) {
             mostrarAlerta("ERRO AO SALVAR: " + e.getMessage(), Alert.AlertType.ERROR);
@@ -409,6 +441,7 @@ public class PDVController {
                     vendaDAO.salvarEncomenda(nova);
                     encomendasAbertas.add(nova);
                     criarCardEncomenda(nova);
+                    atualizarResumoEstoquePdv();
                     mostrarAlerta("Encomenda salva! Estoque reservado.", Alert.AlertType.INFORMATION);
                     resetarPDV();
                 }
@@ -487,14 +520,15 @@ public class PDVController {
                     atualizarTotaisVisualmente(); atualizarNumeroVenda();
                     removerCardEncomenda(encomenda, btnCard);
                     mostrarAlerta("Encomenda aberta! Itens carregados.", Alert.AlertType.INFORMATION);
-                } else if (result.get() == btnCancelar) {
-                    Alert confirmacao = new Alert(Alert.AlertType.CONFIRMATION, "Deseja cancelar esta encomenda? O estoque será devolvido.", ButtonType.YES, ButtonType.NO);
-                    if (confirmacao.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
-                        vendaDAO.cancelarEncomenda(encomenda.getId());
-                        removerCardEncomenda(encomenda, btnCard);
-                        mostrarAlerta("Encomenda cancelada e estoque estornado.", Alert.AlertType.INFORMATION);
+                    } else if (result.get() == btnCancelar) {
+                        Alert confirmacao = new Alert(Alert.AlertType.CONFIRMATION, "Deseja cancelar esta encomenda? O estoque será devolvido.", ButtonType.YES, ButtonType.NO);
+                        if (confirmacao.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
+                            vendaDAO.cancelarEncomenda(encomenda.getId());
+                            removerCardEncomenda(encomenda, btnCard);
+                            atualizarResumoEstoquePdv();
+                            mostrarAlerta("Encomenda cancelada e estoque estornado.", Alert.AlertType.INFORMATION);
+                        }
                     }
-                }
             }
         });
         cardsEncomenda.add(btnCard);
@@ -622,8 +656,96 @@ public class PDVController {
     private void resetarPDV() { carrinho.clear(); atualizarTotaisVisualmente(); limparCamposAposInsercao(); idEncomendaEmAndamento = null; atualizarNumeroVenda(); if (lblProdutoIdentificado != null) lblProdutoIdentificado.setText("CAIXA LIVRE"); sairModoEncomendas(); }
     private void atualizarNumeroVenda() { try { int id = (idEncomendaEmAndamento != null) ? idEncomendaEmAndamento : vendaDAO.getProximoIdVenda(); if (lblNumeroVenda != null) lblNumeroVenda.setText("VENDA Nº " + id); } catch (Exception e) {} }
     private void atualizarTotaisVisualmente() { lblTotalVenda.setText(String.format("R$ %.2f", calcularTotalCarrinho())); tabelaItens.refresh(); }
-    private void cancelarEdicao() { itemEmEdicao = null; txtCodigo.setDisable(false); }
-    private void configurarEventosGlobais() { txtCodigo.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) buscarProduto(); }); txtPeso.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) processarInputPeso(); }); rootPane.addEventFilter(KeyEvent.KEY_PRESSED, event -> { if (event.getText().equals("*") || event.getCode() == KeyCode.MULTIPLY) { event.consume(); abrirNovaEncomenda(null); } else if (event.getCode() == KeyCode.SUBTRACT || event.getCode() == KeyCode.MINUS) { event.consume(); entrarModoEncomendas(); } else if (event.getCode() == KeyCode.DIVIDE || event.getCode() == KeyCode.SLASH || event.getCode() == KeyCode.F5) { event.consume(); finalizarVenda(); } else if (event.getCode() == KeyCode.ESCAPE) { event.consume(); if (indiceCardEncomendaFocado >= 0) sairModoEncomendas(); else tentarSair(); } }); }
+    private void atualizarResumoEstoquePdv() {
+        if (lblResumoEstoquePdv == null) return;
+
+        try {
+            List<Produto> produtos = produtoDAO.listarTodos();
+            List<String> itensResumo = new ArrayList<>();
+            double totalProteinas = 0.0;
+            boolean possuiProteinasAgrupadas = false;
+
+            for (Produto produto : produtos) {
+                if (!produto.isExibirNoPdv()) continue;
+
+                if (produto.isAgruparEmProteina()) {
+                    possuiProteinasAgrupadas = true;
+                    totalProteinas += produto.getEstoque() != null ? produto.getEstoque() : 0.0;
+                    continue;
+                }
+
+                itensResumo.add(formatarResumoProduto(produto));
+            }
+
+            if (possuiProteinasAgrupadas) {
+                itensResumo.add("Proteinas: " + formatarQuantidadeResumo(totalProteinas, "KG"));
+            }
+
+            lblResumoEstoquePdv.setText(itensResumo.isEmpty()
+                    ? "Nenhum produto marcado para exibir no PDV"
+                    : String.join(" | ", itensResumo));
+        } catch (Exception e) {
+            lblResumoEstoquePdv.setText("Nao foi possivel carregar o resumo de estoque");
+        }
+    }
+
+    private String formatarResumoProduto(Produto produto) {
+        String nome = capitalizarPrimeiraLetra(produto.getNome());
+        return nome + ": " + formatarQuantidadeResumo(produto.getEstoque(), produto.getUnidade());
+    }
+
+    private String formatarQuantidadeResumo(Double estoque, String unidade) {
+        double valor = estoque != null ? estoque : 0.0;
+        if ("KG".equalsIgnoreCase(unidade)) {
+            return formatarDecimalSemZeros(valor) + "kg";
+        }
+        return formatarDecimalSemZeros(valor);
+    }
+
+    private String formatarDecimalSemZeros(double valor) {
+        if (Math.abs(valor - Math.rint(valor)) < 0.0000001d) {
+            return String.format(Locale.US, "%.0f", valor);
+        }
+        return String.format(Locale.US, "%.3f", valor)
+                .replaceAll("0+$", "")
+                .replaceAll("\\.$", "");
+    }
+
+    private String capitalizarPrimeiraLetra(String texto) {
+        if (texto == null || texto.isBlank()) return "Produto";
+        return texto.substring(0, 1).toUpperCase(Locale.ROOT) + texto.substring(1);
+    }
+    private void cancelarEdicao() {
+        itemEmEdicao = null;
+        txtCodigo.setDisable(false);
+    }
+    private void configurarEventosGlobais() {
+        txtCodigo.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ENTER) buscarProduto();
+        });
+        txtPeso.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ENTER) {
+                processarInputPeso();
+            }
+        });
+        rootPane.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getText().equals("*") || event.getCode() == KeyCode.MULTIPLY) {
+                event.consume();
+                abrirNovaEncomenda(null);
+            } else if (event.getCode() == KeyCode.SUBTRACT || event.getCode() == KeyCode.MINUS) {
+                event.consume();
+                entrarModoEncomendas();
+            } else if (event.getCode() == KeyCode.DIVIDE || event.getCode() == KeyCode.SLASH || event.getCode() == KeyCode.F5) {
+                event.consume();
+                finalizarVenda();
+            } else if (event.getCode() == KeyCode.ESCAPE) {
+                event.consume();
+                if (itemEmEdicao != null) limparCamposAposInsercao();
+                else if (indiceCardEncomendaFocado >= 0) sairModoEncomendas();
+                else tentarSair();
+            }
+        });
+    }
     private void configurarMascaraPeso() {
         txtPeso.textProperty().addListener((obs, old, newValue) -> {
             if (newValue == null || newValue.isEmpty()) {
@@ -658,8 +780,37 @@ public class PDVController {
         });
     }
     private void configurarTabela() { colNome.setCellValueFactory(new PropertyValueFactory<>("nomeProduto")); colQtd.setCellValueFactory(new PropertyValueFactory<>("quantidade")); colPreco.setCellValueFactory(new PropertyValueFactory<>("precoUnitario")); colTotal.setCellValueFactory(new PropertyValueFactory<>("totalItem")); colQtd.setCellFactory(tc -> new TableCell<>() { @Override protected void updateItem(Double item, boolean empty) { super.updateItem(item, empty); setText((empty || item == null) ? null : String.format("%.3f", item)); } }); colPreco.setCellFactory(tc -> new TableCell<>() { @Override protected void updateItem(Double item, boolean empty) { super.updateItem(item, empty); setText((empty || item == null) ? null : String.format("R$ %.2f", item)); } }); colTotal.setCellFactory(tc -> new TableCell<>() { @Override protected void updateItem(Double item, boolean empty) { super.updateItem(item, empty); setText((empty || item == null) ? null : String.format("R$ %.2f", item)); } }); tabelaItens.setItems(carrinho); }
-    private void configurarEventosTabela() { tabelaItens.setOnKeyPressed(event -> { ItemVenda item = tabelaItens.getSelectionModel().getSelectedItem(); if (item != null && event.getCode() == KeyCode.DELETE) { carrinho.remove(item); atualizarTotaisVisualmente(); } }); }
-    private void configurarSelecaoTabela() { tabelaItens.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> { if (newVal != null && "KG".equals(newVal.getProduto().getUnidade())) { itemEmEdicao = newVal; produtoAtual = newVal.getProduto(); txtPeso.setDisable(false); txtPeso.setText(String.format("%.3f", newVal.getQuantidade())); txtCodigo.setDisable(true); } }); }
+    private void configurarEventosTabela() {
+        tabelaItens.setOnKeyPressed(event -> {
+            ItemVenda item = tabelaItens.getSelectionModel().getSelectedItem();
+            if (item != null && event.getCode() == KeyCode.DELETE) {
+                carrinho.remove(item);
+                atualizarTotaisVisualmente();
+            } else if (event.getCode() == KeyCode.ENTER && itemEmEdicao != null) {
+                event.consume();
+                processarInputPeso();
+            } else if (event.getCode() == KeyCode.ESCAPE && itemEmEdicao != null) {
+                event.consume();
+                limparCamposAposInsercao();
+            }
+        });
+    }
+    private void configurarSelecaoTabela() {
+        tabelaItens.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && "KG".equals(newVal.getProduto().getUnidade())) {
+                itemEmEdicao = newVal;
+                produtoAtual = newVal.getProduto();
+                txtPeso.setDisable(false);
+                txtPeso.setText(String.format("%.3f", newVal.getQuantidade()));
+                txtCodigo.setDisable(true);
+                mostrarEdicaoItemKg();
+                Platform.runLater(() -> {
+                    txtPeso.requestFocus();
+                    txtPeso.selectAll();
+                });
+            }
+        });
+    }
     private void entrarModoEncomendas() { if (cardsEncomenda.isEmpty()) { mostrarAlerta("Nao existem encomendas pendentes para abrir.", Alert.AlertType.INFORMATION); return; } if (indiceCardEncomendaFocado < 0 || indiceCardEncomendaFocado >= cardsEncomenda.size()) indiceCardEncomendaFocado = 0; focarCardEncomenda(indiceCardEncomendaFocado); }
     private void sairModoEncomendas() { indiceCardEncomendaFocado = -1; atualizarEstiloCardsEncomenda(); Platform.runLater(() -> { txtCodigo.requestFocus(); txtCodigo.selectAll(); }); }
     private void moverFocoEncomenda(int delta) { if (cardsEncomenda.isEmpty()) return; if (indiceCardEncomendaFocado < 0) indiceCardEncomendaFocado = 0; else indiceCardEncomendaFocado = Math.floorMod(indiceCardEncomendaFocado + delta, cardsEncomenda.size()); focarCardEncomenda(indiceCardEncomendaFocado); }
@@ -668,7 +819,51 @@ public class PDVController {
     private void iniciarAtualizacaoDosCardsEncomenda() { if (timelineEncomendas != null) timelineEncomendas.stop(); timelineEncomendas = new Timeline(new KeyFrame(Duration.seconds(1), event -> atualizarCardsEncomenda())); timelineEncomendas.setCycleCount(Timeline.INDEFINITE); timelineEncomendas.play(); }
     private void pararAtualizacaoDosCardsEncomenda() { if (timelineEncomendas != null) timelineEncomendas.stop(); }
     private void atualizarCardsEncomenda() { for (Button card : cardsEncomenda) { Encomenda encomenda = encomendasPorCard.get(card); if (encomenda != null) atualizarConteudoCardEncomenda(card, encomenda); } atualizarEstiloCardsEncomenda(); }
-    private void atualizarConteudoCardEncomenda(Button card, Encomenda encomenda) { String idTexto = (encomenda.getId() != null) ? "#" + encomenda.getId() : ""; card.setText("ENC " + idTexto + "\n" + encomenda.getNomeCliente() + " | " + formatarStatusRetirada(encomenda)); }
+    private void atualizarConteudoCardEncomenda(Button card, Encomenda encomenda) {
+        String idTexto = (encomenda.getId() != null) ? "#" + encomenda.getId() : "";
+        String cliente = encomenda.getNomeCliente() != null ? encomenda.getNomeCliente().trim() : "Sem nome";
+        String resumoItens = resumirItensEncomenda(encomenda);
+        card.setText("ENC " + idTexto + " | " + cliente + "\n" + resumoItens);
+    }
+
+    private String resumirItensEncomenda(Encomenda encomenda) {
+        if (encomenda == null || encomenda.getItens() == null || encomenda.getItens().isEmpty()) {
+            return "Sem itens";
+        }
+
+        List<String> partes = new ArrayList<>();
+        for (ItemVenda item : encomenda.getItens()) {
+            partes.add(formatarItemResumoEncomenda(item));
+        }
+
+        String resumo = String.join(" / ", partes);
+        int limite = 36;
+        if (resumo.length() <= limite) {
+            return resumo;
+        }
+
+        return resumo.substring(0, Math.max(0, limite - 3)).trim() + "...";
+    }
+
+    private String formatarItemResumoEncomenda(ItemVenda item) {
+        if (item == null || item.getProduto() == null) {
+            return "Item";
+        }
+
+        String nome = capitalizarPrimeiraLetra(item.getProduto().getNome());
+        String unidade = item.getProduto().getUnidade();
+        double quantidade = item.getQuantidade();
+
+        if ("KG".equalsIgnoreCase(unidade)) {
+            if (quantidade > 0 && quantidade < 1) {
+                long gramas = Math.round(quantidade * 1000);
+                return gramas + "g " + nome;
+            }
+            return formatarDecimalSemZeros(quantidade) + "kg " + nome;
+        }
+
+        return formatarDecimalSemZeros(quantidade) + " " + nome;
+    }
     private boolean isEncomendaAtrasada(Encomenda encomenda) { return encomenda.getDataRetirada() != null && !encomenda.getDataRetirada().isAfter(LocalDateTime.now()); }
     private String formatarStatusRetirada(Encomenda encomenda) { if (encomenda.getDataRetirada() == null) return "sem horario"; long minutos = ChronoUnit.MINUTES.between(LocalDateTime.now(), encomenda.getDataRetirada()); if (minutos > 0) return "retira em " + minutos + " min"; return "atrasado ha " + Math.abs(minutos) + " min"; }
     @FXML public void tentarSair() { voltarAoMenu(); }

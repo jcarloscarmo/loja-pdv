@@ -13,7 +13,7 @@ import java.util.List;
 public class ProdutoDAO {
 
     public void salvar(Produto p) {
-        String sql = "INSERT INTO produtos (codigo, nome, preco_custo, preco_venda, unidade, estoque) VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO produtos (codigo, nome, preco_custo, preco_venda, unidade, estoque, exibir_no_pdv, agrupar_em_proteina) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, p.getCodigo());
@@ -22,6 +22,8 @@ public class ProdutoDAO {
             pstmt.setDouble(4, p.getPrecoVenda());
             pstmt.setString(5, p.getUnidade());
             pstmt.setDouble(6, p.getEstoque());
+            pstmt.setBoolean(7, p.isExibirNoPdv());
+            pstmt.setBoolean(8, p.isAgruparEmProteina());
             pstmt.executeUpdate();
         } catch (SQLException e) {
             System.out.println(e.getMessage());
@@ -45,6 +47,8 @@ public class ProdutoDAO {
                 produto.setPrecoVenda(rs.getDouble("preco_venda"));
                 produto.setUnidade(rs.getString("unidade"));
                 produto.setEstoque(rs.getDouble("estoque"));
+                produto.setExibirNoPdv(rs.getBoolean("exibir_no_pdv"));
+                produto.setAgruparEmProteina(rs.getBoolean("agrupar_em_proteina"));
                 produtos.add(produto);
             }
         } catch (SQLException e) {
@@ -69,6 +73,8 @@ public class ProdutoDAO {
                     produto.setPrecoVenda(rs.getDouble("preco_venda"));
                     produto.setUnidade(rs.getString("unidade"));
                     produto.setEstoque(rs.getDouble("estoque"));
+                    produto.setExibirNoPdv(rs.getBoolean("exibir_no_pdv"));
+                    produto.setAgruparEmProteina(rs.getBoolean("agrupar_em_proteina"));
                 }
             }
         } catch (SQLException e) {
@@ -89,7 +95,7 @@ public class ProdutoDAO {
     }
 
     public void atualizar(Produto p) {
-        String sql = "UPDATE produtos SET codigo = ?, nome = ?, preco_custo = ?, preco_venda = ?, unidade = ?, estoque = ? WHERE id = ?";
+        String sql = "UPDATE produtos SET codigo = ?, nome = ?, preco_custo = ?, preco_venda = ?, unidade = ?, estoque = ?, exibir_no_pdv = ?, agrupar_em_proteina = ? WHERE id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
@@ -99,7 +105,9 @@ public class ProdutoDAO {
             pstmt.setDouble(4, p.getPrecoVenda());
             pstmt.setString(5, p.getUnidade());
             pstmt.setDouble(6, p.getEstoque());
-            pstmt.setInt(7, p.getId());
+            pstmt.setBoolean(7, p.isExibirNoPdv());
+            pstmt.setBoolean(8, p.isAgruparEmProteina());
+            pstmt.setInt(9, p.getId());
 
             pstmt.executeUpdate();
         } catch (SQLException e) {

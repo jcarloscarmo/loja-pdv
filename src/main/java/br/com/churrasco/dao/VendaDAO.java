@@ -268,7 +268,7 @@ public class VendaDAO {
     }
 
     private List<ItemVenda> buscarItensPorEncomenda(int encomendaId) {
-        String sql = "SELECT i.*, p.nome, p.unidade, p.preco_venda FROM itens_encomenda i JOIN produtos p ON i.produto_id = p.id WHERE i.encomenda_id = ?";
+        String sql = "SELECT i.*, p.nome, p.unidade, p.preco_venda, p.estoque FROM itens_encomenda i JOIN produtos p ON i.produto_id = p.id WHERE i.encomenda_id = ?";
         List<ItemVenda> itens = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -280,6 +280,7 @@ public class VendaDAO {
                 p.setNome(rs.getString("nome"));
                 p.setUnidade(rs.getString("unidade"));
                 p.setPrecoVenda(rs.getDouble("preco_venda"));
+                p.setEstoque(rs.getDouble("estoque"));
                 ItemVenda item = new ItemVenda();
                 item.setProduto(p);
                 item.setQuantidade(rs.getDouble("quantidade"));
@@ -396,7 +397,7 @@ public class VendaDAO {
     }
 
     public List<ItemVenda> buscarItensPorVenda(int vendaId) {
-        String sql = "SELECT i.*, p.nome, p.unidade, p.preco_venda FROM itens_venda i JOIN produtos p ON i.produto_id = p.id WHERE i.venda_id = ?";
+        String sql = "SELECT i.*, p.nome, p.unidade, p.preco_venda, p.estoque FROM itens_venda i JOIN produtos p ON i.produto_id = p.id WHERE i.venda_id = ?";
         List<ItemVenda> itens = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -408,6 +409,7 @@ public class VendaDAO {
                 p.setNome(rs.getString("nome"));
                 p.setUnidade(rs.getString("unidade"));
                 p.setPrecoVenda(rs.getDouble("preco_venda"));
+                p.setEstoque(rs.getDouble("estoque"));
                 ItemVenda item = new ItemVenda();
                 item.setProduto(p);
                 item.setQuantidade(rs.getDouble("quantidade"));

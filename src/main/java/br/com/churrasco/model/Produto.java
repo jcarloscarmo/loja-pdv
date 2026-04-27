@@ -15,4 +15,6 @@ public class Produto {
     private Double precoVenda;
     private String unidade;
     private Double estoque;
+    private boolean exibirNoPdv;
+    private boolean agruparEmProteina;
 }

@@ -23,6 +23,8 @@ public class ProdutosController {
     @FXML private TextField txtPreco;
     @FXML private TextField txtEstoque;
     @FXML private ComboBox<String> comboUnidade;
+    @FXML private CheckBox chkExibirNoPdv;
+    @FXML private CheckBox chkAgruparEmProteina;
 
     @FXML private TableView<Produto> tabelaProdutos;
     @FXML private TableColumn<Produto, String> colCodigo;
@@ -44,10 +46,22 @@ public class ProdutosController {
 
         comboUnidade.getItems().addAll("KG", "UN");
         comboUnidade.getSelectionModel().selectFirst();
+        configurarCheckboxes();
 
         tabelaProdutos.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
                 preencherFormulario(newVal);
+            }
+        });
+    }
+
+    private void configurarCheckboxes() {
+        if (chkExibirNoPdv == null || chkAgruparEmProteina == null) return;
+
+        chkAgruparEmProteina.disableProperty().bind(chkExibirNoPdv.selectedProperty().not());
+        chkExibirNoPdv.selectedProperty().addListener((obs, oldVal, selected) -> {
+            if (!selected) {
+                chkAgruparEmProteina.setSelected(false);
             }
         });
     }
@@ -121,6 +135,8 @@ public class ProdutosController {
             }
 
             String unidade = comboUnidade.getValue();
+            boolean exibirNoPdv = chkExibirNoPdv != null && chkExibirNoPdv.isSelected();
+            boolean agruparEmProteina = exibirNoPdv && chkAgruparEmProteina != null && chkAgruparEmProteina.isSelected();
 
             if (produtoSelecionado == null) {
                 // Valida se o código já existe apenas se for novo
@@ -130,7 +146,7 @@ public class ProdutosController {
                     return;
                 }
 
-                Produto novo = new Produto(null, codigo, nome, precoCusto, precoVenda, unidade, estoque);
+                Produto novo = new Produto(null, codigo, nome, precoCusto, precoVenda, unidade, estoque, exibirNoPdv, agruparEmProteina);
                 produtoDAO.salvar(novo);
             } else {
                 produtoSelecionado.setCodigo(codigo);
@@ -139,6 +155,8 @@ public class ProdutosController {
                 produtoSelecionado.setPrecoVenda(precoVenda);
                 produtoSelecionado.setUnidade(unidade);
                 produtoSelecionado.setEstoque(estoque);
+                produtoSelecionado.setExibirNoPdv(exibirNoPdv);
+                produtoSelecionado.setAgruparEmProteina(agruparEmProteina);
                 produtoDAO.atualizar(produtoSelecionado);
             }
 
@@ -179,6 +197,8 @@ public class ProdutosController {
         txtPreco.setText("");
         if(txtCusto != null) txtCusto.setText("");
         txtEstoque.setText("0");
+        if (chkExibirNoPdv != null) chkExibirNoPdv.setSelected(false);
+        if (chkAgruparEmProteina != null) chkAgruparEmProteina.setSelected(false);
         comboUnidade.getSelectionModel().selectFirst();
         produtoSelecionado = null;
         tabelaProdutos.getSelectionModel().clearSelection();
@@ -200,6 +220,8 @@ public class ProdutosController {
 
         txtEstoque.setText(String.valueOf(p.getEstoque()));
         comboUnidade.setValue(p.getUnidade());
+        if (chkExibirNoPdv != null) chkExibirNoPdv.setSelected(p.isExibirNoPdv());
+        if (chkAgruparEmProteina != null) chkAgruparEmProteina.setSelected(p.isAgruparEmProteina());
     }
 
     @FXML
