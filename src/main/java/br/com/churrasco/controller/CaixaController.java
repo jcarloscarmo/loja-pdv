@@ -4,7 +4,10 @@ import br.com.churrasco.dao.CaixaDAO;
 import br.com.churrasco.dao.UsuarioDAO; // Importante
 import br.com.churrasco.dao.VendaDAO;
 import br.com.churrasco.model.Caixa;
+import br.com.churrasco.model.Venda;
 import br.com.churrasco.service.ImpressoraService;
+import br.com.churrasco.util.FechamentoCaixaFormatter;
+import br.com.churrasco.util.InputMaskUtil;
 import br.com.churrasco.util.Sessao; // Importante
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -12,9 +15,11 @@ import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.util.Pair; // Para o Dialog
 
+import java.util.List;
 import java.util.Optional;
 
 public class CaixaController {
@@ -30,6 +35,7 @@ public class CaixaController {
 
     private boolean confirmado = false;
     private Caixa caixaAberto;
+    private FechamentoCaixaFormatter.ResumoFechamento resumoFechamento;
 
     @FXML
     public void initialize() {
@@ -40,19 +46,7 @@ public class CaixaController {
 
     // --- MASCARA ---
     private void configurarMascaraDinheiro() {
-        if(txtValor == null) return;
-        txtValor.textProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue == null || newValue.isEmpty()) return;
-            String digitos = newValue.replaceAll("[^0-9]", "");
-            if (digitos.isEmpty()) digitos = "0";
-            long valorLong = Long.parseLong(digitos);
-            double valorDecimal = valorLong / 100.0;
-            String formatado = String.format("%.2f", valorDecimal);
-            if (!newValue.equals(formatado)) {
-                txtValor.setText(formatado);
-                txtValor.positionCaret(formatado.length());
-            }
-        });
+        InputMaskUtil.aplicarMascaraMonetaria(txtValor);
     }
 
     @FXML
@@ -89,6 +83,8 @@ public class CaixaController {
 
         double vendasDinheiro = caixaDAO.calcularSaldoDinheiroSistema(caixaAberto.getId());
         double totalEsperadoNaGaveta = caixaAberto.getSaldoInicial() + vendasDinheiro;
+
+        this.resumoFechamento = calcularResumoFechamento(caixaAberto.getId());
 
         caixaAberto.setSaldoFinal(totalEsperadoNaGaveta);
         lblSaldoSistema.setText(String.format("R$ %.2f", totalEsperadoNaGaveta));
@@ -222,17 +218,89 @@ public class CaixaController {
     }
 
     private void imprimirFechamento() {
-        // Logica de impressão
+        if (caixaAberto == null) {
+            mostrarAlerta("Nao foi possivel imprimir: caixa nao identificado.");
+            return;
+        }
+
+        FechamentoCaixaFormatter.ResumoFechamento resumo = resumoFechamento != null
+                ? resumoFechamento
+                : calcularResumoFechamento(caixaAberto.getId());
+
+        impressoraService.imprimirRelatorioFechamento(
+                caixaAberto,
+                resumo.totalDinheiro(),
+                resumo.totalPix(),
+                resumo.totalDebito(),
+                resumo.totalCredito(),
+                resumo.totalDesconto()
+        );
     }
 
     private void exibirRelatorioFinal(double informado, double diferenca) {
-        // Logica de exibição do comprovante amarelo (se tiver)
+        if (caixaAberto == null) {
+            return;
+        }
+
+        caixaAberto.setSaldoInformado(informado);
+        caixaAberto.setDiferenca(diferenca);
+
+        FechamentoCaixaFormatter.ResumoFechamento resumo = resumoFechamento != null
+                ? resumoFechamento
+                : calcularResumoFechamento(caixaAberto.getId());
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Resumo do Fechamento");
+        alert.setHeaderText("Caixa fechado com sucesso");
+
+        TextArea area = new TextArea(FechamentoCaixaFormatter.gerarTexto(caixaAberto, resumo));
+        area.setEditable(false);
+        area.setWrapText(false);
+        area.setStyle("-fx-font-family: 'Courier New'; -fx-font-size: 13px;");
+
+        VBox box = new VBox(area);
+        box.setPrefSize(420, 420);
+        alert.getDialogPane().setContent(box);
+        alert.showAndWait();
     }
 
     private double lerValorMonetario() {
-        String limpo = txtValor.getText().replaceAll("[^0-9]", "");
+        String limpo = InputMaskUtil.extrairDigitos(txtValor.getText());
         if(limpo.isEmpty()) limpo = "0";
         return Double.parseDouble(limpo) / 100.0;
+    }
+
+    private FechamentoCaixaFormatter.ResumoFechamento calcularResumoFechamento(int caixaId) {
+        List<Venda> vendas = vendaDAO.buscarVendasDetalhadasPorCaixa(caixaId);
+
+        double totalDinheiro = 0.0;
+        double totalPix = 0.0;
+        double totalDebito = 0.0;
+        double totalCredito = 0.0;
+        double totalDesconto = 0.0;
+        double totalLiquido = 0.0;
+
+        for (Venda venda : vendas) {
+            totalDinheiro += valor(venda.getValorDinheiro());
+            totalPix += valor(venda.getValorPix());
+            totalDebito += valor(venda.getValorDebito());
+            totalCredito += valor(venda.getValorCredito());
+            totalDesconto += valor(venda.getDesconto());
+            totalLiquido += valor(venda.getValorTotal());
+        }
+
+        return new FechamentoCaixaFormatter.ResumoFechamento(
+                totalDinheiro,
+                totalPix,
+                totalDebito,
+                totalCredito,
+                totalDesconto,
+                totalLiquido
+        );
+    }
+
+    private double valor(Double numero) {
+        return numero != null ? numero : 0.0;
     }
 
     private void fecharJanela() {

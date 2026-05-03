@@ -5,6 +5,8 @@ import br.com.churrasco.dao.UsuarioDAO;
 import br.com.churrasco.model.Usuario;
 import br.com.churrasco.service.BalancaService; // <--- Import Novo
 import br.com.churrasco.service.ImpressoraService;
+import br.com.churrasco.util.CupomGenerator;
+import br.com.churrasco.util.InputMaskUtil;
 import br.com.churrasco.util.LogUtil;
 import br.com.churrasco.util.Navegacao;
 
@@ -73,7 +75,15 @@ public class ConfiguracoesController {
         try { configurarListenersPreview(); atualizarPreview(); }
         catch (Exception e) { LogUtil.registrarErro("Erro ao iniciar Preview", e); }
 
+        try { configurarMascaras(); }
+        catch (Exception e) { LogUtil.registrarErro("Erro ao aplicar mascaras", e); }
+
         LogUtil.registrar("SISTEMA", "Tela de Configurações aberta.");
+    }
+
+    private void configurarMascaras() {
+        InputMaskUtil.aplicarMascaraCnpj(txtCnpj);
+        InputMaskUtil.aplicarMascaraTelefone(txtTelefone);
     }
 
     private void carregarListasHardware() {
@@ -182,8 +192,38 @@ public class ConfiguracoesController {
     }
 
     // --- Outros Métodos ---
-    private void configurarListenersPreview() { if (txtEmpresaNome == null) return; txtEmpresaNome.textProperty().addListener((o, old, newV) -> atualizarPreview()); }
-    private void atualizarPreview() { /* Lógica do preview */ }
+    private void configurarListenersPreview() {
+        if (txtPreview == null) return;
+
+        txtEmpresaNome.textProperty().addListener((o, old, newV) -> atualizarPreview());
+        txtCnpj.textProperty().addListener((o, old, newV) -> atualizarPreview());
+        txtEndereco.textProperty().addListener((o, old, newV) -> atualizarPreview());
+        txtTelefone.textProperty().addListener((o, old, newV) -> atualizarPreview());
+        txtRodape.textProperty().addListener((o, old, newV) -> atualizarPreview());
+        chkPrintCnpj.selectedProperty().addListener((o, old, newV) -> atualizarPreview());
+        chkPrintEndereco.selectedProperty().addListener((o, old, newV) -> atualizarPreview());
+        chkPrintTelefone.selectedProperty().addListener((o, old, newV) -> atualizarPreview());
+        chkPrintDataHora.selectedProperty().addListener((o, old, newV) -> atualizarPreview());
+    }
+
+    private void atualizarPreview() {
+        if (txtPreview == null) return;
+
+        CupomGenerator.ConfiguracaoCupom config = new CupomGenerator.ConfiguracaoCupom(
+                txtEmpresaNome.getText(),
+                txtCnpj.getText(),
+                txtEndereco.getText(),
+                txtTelefone.getText(),
+                txtRodape.getText(),
+                chkPrintCnpj.isSelected(),
+                chkPrintEndereco.isSelected(),
+                chkPrintTelefone.isSelected(),
+                chkPrintDataHora.isSelected()
+        );
+
+        txtPreview.setText(CupomGenerator.gerarPreview(config));
+        txtPreview.positionCaret(0);
+    }
     private String centralizar(String texto, int largura) { if (texto.length() >= largura) return texto.substring(0, largura); int espacos = (largura - texto.length()) / 2; return " ".repeat(Math.max(0, espacos)) + texto; }
     private void carregarDadosSalvos() {
         txtEmpresaNome.setText(configDAO.getValor("empresa_nome").orElse(""));

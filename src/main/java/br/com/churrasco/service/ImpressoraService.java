@@ -5,6 +5,8 @@ import br.com.churrasco.model.Caixa;
 import br.com.churrasco.model.ItemVenda;
 import br.com.churrasco.model.Pagamento;
 import br.com.churrasco.model.Venda;
+import br.com.churrasco.util.CupomGenerator;
+import br.com.churrasco.util.FechamentoCaixaFormatter;
 import br.com.churrasco.util.LogUtil;
 import com.github.anastaciocintra.escpos.EscPos;
 import com.github.anastaciocintra.escpos.EscPosConst;
@@ -31,64 +33,10 @@ public class ImpressoraService {
             try (PrinterOutputStream printerOutputStream = new PrinterOutputStream(printService);
                  EscPos escpos = new EscPos(printerOutputStream)) {
 
-                Style titulo = new Style().setFontSize(Style.FontSize._2, Style.FontSize._1).setJustification(EscPosConst.Justification.Center).setBold(true);
-                Style centro = new Style().setJustification(EscPosConst.Justification.Center);
                 Style normal = new Style().setFontSize(Style.FontSize._1, Style.FontSize._1);
-                Style negrito = new Style().setBold(true);
-
-                // Cabeçalho
-                escpos.writeLF(titulo, getValorConfig("empresa_nome", "CHURRASCARIA"));
-                if (Boolean.parseBoolean(getValorConfig("print_datahora", "true"))) {
-                    escpos.writeLF(centro, venda.getDataHora().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
+                for (String linha : CupomGenerator.gerarLinhasVenda(venda, itens, pagamentos)) {
+                    escpos.writeLF(normal, linha);
                 }
-                escpos.writeLF(centro, "--------------------------------");
-                escpos.writeLF(centro, "Recibo #" + venda.getId());
-                escpos.writeLF(centro, "--------------------------------");
-
-                // Itens
-                double subtotal = 0.0;
-                for (ItemVenda item : itens) {
-                    String nome = item.getNomeProduto();
-                    if (nome.length() > 32) nome = nome.substring(0, 32);
-                    escpos.writeLF(negrito, nome);
-
-                    String qtd = "KG".equals(item.getProduto().getUnidade()) ?
-                            String.format("%.3fkg", item.getQuantidade()) : String.format("%.0f un", item.getQuantidade());
-
-                    escpos.writeLF(normal, String.format("%s x R$%.2f", qtd, item.getPrecoUnitario()));
-                    escpos.writeLF(negrito, String.format("%32s", String.format("R$ %.2f", item.getTotalItem())));
-                    escpos.writeLF(normal, "................................");
-
-                    subtotal += item.getTotalItem();
-                }
-
-                escpos.writeLF(centro, "--------------------------------");
-
-                // Lógica de Desconto no Papel
-                double totalLiquido = venda.getValorTotal();
-                double desconto = subtotal - totalLiquido;
-
-                if (desconto > 0.01) {
-                    escpos.writeLF(normal, String.format("SUBTOTAL:       R$ %8.2f", subtotal));
-                    escpos.writeLF(normal, String.format("DESCONTO (-):   R$ %8.2f", desconto));
-                }
-
-                escpos.writeLF(titulo, String.format("TOTAL: R$ %.2f", totalLiquido));
-                escpos.writeLF(centro, "--------------------------------");
-
-                for (Pagamento p : pagamentos) {
-                    escpos.writeLF(centro, String.format("%s: R$ %.2f", p.getTipo(), p.getValor()));
-                }
-
-                double totalPago = pagamentos.stream().mapToDouble(Pagamento::getValor).sum();
-                double troco = totalPago - totalLiquido;
-                if (troco > 0.01) {
-                    escpos.feed(1);
-                    escpos.writeLF(negrito, String.format("   TROCO: R$ %.2f", troco));
-                }
-
-                escpos.feed(2);
-                escpos.writeLF(centro, getValorConfig("rodape_cupom", "Volte Sempre!"));
                 escpos.feed(4);
                 escpos.cut(EscPos.CutMode.FULL);
             }
@@ -104,51 +52,44 @@ public class ImpressoraService {
 
             try (PrinterOutputStream printerOutputStream = new PrinterOutputStream(printService);
                  EscPos escpos = new EscPos(printerOutputStream)) {
-
-                Style titulo = new Style().setFontSize(Style.FontSize._2, Style.FontSize._1).setJustification(EscPosConst.Justification.Center).setBold(true);
-                Style centro = new Style().setJustification(EscPosConst.Justification.Center);
                 Style normal = new Style().setFontSize(Style.FontSize._1, Style.FontSize._1);
-                Style negrito = new Style().setBold(true);
 
-                escpos.writeLF(titulo, "FECHAMENTO DE CAIXA");
-                escpos.writeLF(centro, "--------------------------------");
-                escpos.writeLF(centro, "Caixa ID: " + caixa.getId());
-                escpos.writeLF(centro, "Fechamento: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")));
-                escpos.writeLF(centro, "--------------------------------");
+                FechamentoCaixaFormatter.ResumoFechamento resumo = new FechamentoCaixaFormatter.ResumoFechamento(
+                        tDin,
+                        tPix,
+                        tDeb,
+                        tCre,
+                        tDesc,
+                        tDin + tPix + tDeb + tCre
+                );
 
-                escpos.writeLF(negrito, "RESUMO DE VENDAS:");
-
-                if (tDesc > 0.01) {
-                    escpos.writeLF(normal, String.format("(-) Descontos:  R$ %8.2f", tDesc));
+                for (String linha : FechamentoCaixaFormatter.gerarLinhas(caixa, resumo)) {
+                    escpos.writeLF(normal, linha);
                 }
-
-                escpos.writeLF(normal, String.format("Dinheiro:       R$ %8.2f", tDin));
-                escpos.writeLF(normal, String.format("Pix:            R$ %8.2f", tPix));
-                escpos.writeLF(normal, String.format("Debito:         R$ %8.2f", tDeb));
-                escpos.writeLF(normal, String.format("Credito:        R$ %8.2f", tCre));
-
-                double totalGeral = tDin + tPix + tDeb + tCre;
-                escpos.writeLF(negrito, String.format("TOTAL LIQ:      R$ %8.2f", totalGeral));
-                escpos.writeLF(centro, "--------------------------------");
-
-                escpos.writeLF(negrito, "CONFERENCIA GAVETA:");
-                escpos.writeLF(normal, String.format("Fundo Troco:    R$ %8.2f", caixa.getSaldoInicial()));
-                escpos.writeLF(normal, String.format("Esperado (Din): R$ %8.2f", caixa.getSaldoFinal()));
-                escpos.writeLF(normal, String.format("Informado:      R$ %8.2f", caixa.getSaldoInformado()));
-
-                double dif = caixa.getDiferenca();
-                String status = Math.abs(dif) < 0.01 ? "OK" : (dif > 0 ? "SOBRA" : "FALTA");
-                escpos.writeLF(negrito, String.format("DIFERENCA:      R$ %8.2f (%s)", dif, status));
-
-                escpos.writeLF(centro, "--------------------------------");
-                escpos.writeLF(centro, "Assinatura do Operador");
                 escpos.feed(4);
                 escpos.cut(EscPos.CutMode.FULL);
             }
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    public void imprimirTeste() { /* ... código de teste mantido ... */ }
+    public void imprimirTeste() {
+        try {
+            PrintService printService = obterPrintService();
+            if (printService == null) return;
+
+            try (PrinterOutputStream printerOutputStream = new PrinterOutputStream(printService);
+                 EscPos escpos = new EscPos(printerOutputStream)) {
+                Style normal = new Style().setFontSize(Style.FontSize._1, Style.FontSize._1);
+                for (String linha : CupomGenerator.gerarLinhasPreview(CupomGenerator.carregarConfiguracao())) {
+                    escpos.writeLF(normal, linha);
+                }
+                escpos.feed(4);
+                escpos.cut(EscPos.CutMode.FULL);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     // Auxiliares
     private PrintService obterPrintService() {

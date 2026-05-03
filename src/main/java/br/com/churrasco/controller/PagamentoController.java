@@ -1,6 +1,7 @@
 package br.com.churrasco.controller;
 
 import br.com.churrasco.model.Pagamento;
+import br.com.churrasco.util.InputMaskUtil;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -72,20 +73,7 @@ public class PagamentoController {
     }
 
     private void configurarMascaraMonetaria() {
-        txtValor.textProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue == null || newValue.isEmpty()) return;
-            String digitos = newValue.replaceAll("[^0-9]", "");
-            if (digitos.isEmpty()) digitos = "0";
-
-            long valorLong = Long.parseLong(digitos);
-            double valorDecimal = valorLong / 100.0;
-
-            String formatado = String.format("%.2f", valorDecimal);
-            if (!newValue.equals(formatado)) {
-                txtValor.setText(formatado);
-                txtValor.positionCaret(formatado.length());
-            }
-        });
+        InputMaskUtil.aplicarMascaraMonetaria(txtValor);
     }
 
     private void processarTeclaGlobal(KeyEvent event) {

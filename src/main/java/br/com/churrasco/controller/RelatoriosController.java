@@ -179,7 +179,7 @@ public class RelatoriosController {
                 java.lang.reflect.Method setTexto = controller.getClass().getMethod("setTextoCupom", String.class);
                 java.lang.reflect.Method ativarLeitura = controller.getClass().getMethod("ativarModoLeitura");
 
-                setTexto.invoke(controller, CupomGenerator.gerarTexto(itens, pagamentos, venda.getValorTotal()));
+                setTexto.invoke(controller, CupomGenerator.gerarTexto(venda, itens, pagamentos));
                 ativarLeitura.invoke(controller);
 
             } catch (Exception ex) {
