@@ -145,6 +145,34 @@ Arquivos locais ignorados pelo Git:
 - `sistema.log`
 ```
 
+## 📦 Gerar instalador Windows
+
+Pre-requisitos:
+
+- JDK com `jpackage` instalado
+- Maven instalado e disponivel no `PATH`
+
+Passos:
+
+```powershell
+# 1. Gerar o jar da aplicacao com a versao da release
+mvn clean package -Dapp.release.version=1.0.0
+
+# 2. Gerar o instalador .msi de atualizacao
+./build-installer.ps1 -Version 1.0.0
+```
+
+Saida esperada:
+
+- instalador em `dist/PDVChurrasco-<versao>.msi`
+
+Observacoes:
+
+- o instalador usa `jpackage` em modo `msi`, com `--win-upgrade-uuid` fixo, para permitir upgrade por cima da instalacao anterior
+- o nome do aplicativo permanece `PDVChurrasco` para nao quebrar o fluxo de atualizacao no Windows
+- ao abrir a nova versao, o sistema recria o atalho da area de trabalho como `PDVChurrasco v<versao>` e remove atalhos versionados antigos
+- o script usa `JAVA_HOME` quando disponivel e, se necessario, tenta localizar `jpackage.exe` em `C:\Program Files\Java`
+
 ## 👨‍💻 Autor
 
 <div align="center"> <img style="border-radius: 50%;" src="https://github.com/jcarloscarmo.png" width="100px;" alt="Foto de Perfil José Carlos"/> <br /> <sub><b>José Carlos</b></sub> <br /> <br />

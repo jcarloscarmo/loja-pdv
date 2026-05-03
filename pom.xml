@@ -13,6 +13,7 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javafx.version>23.0.1</javafx.version>
+        <app.release.version>${project.version}</app.release.version>
     </properties>
 
     <dependencies>
@@ -104,6 +105,10 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>br.com.churrasco.Launcher</mainClass>
                                 </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.IncludeResourceTransformer">
+                                    <resource>build-info.properties</resource>
+                                    <file>${project.build.directory}/generated-resources/build-info.properties</file>
+                                </transformer>
                             </transformers>
                             <filters>
                                 <filter>
@@ -115,6 +120,26 @@
                                     </excludes>
                                 </filter>
                             </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <mkdir dir="${project.build.directory}/generated-resources" />
+                                <echo file="${project.build.directory}/generated-resources/build-info.properties">app.version=${app.release.version}</echo>
+                            </target>
                         </configuration>
                     </execution>
                 </executions>

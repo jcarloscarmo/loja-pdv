@@ -1,6 +1,7 @@
 package br.com.churrasco;
 
 import br.com.churrasco.util.DatabaseConnection;
+import br.com.churrasco.util.ShortcutVersionManager;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -11,6 +12,8 @@ import javafx.stage.StageStyle; // Importante para tirar a borda da janela
 public class Main extends Application {
 
     public static void main(String[] args) {
+        ShortcutVersionManager.syncDesktopShortcut();
+
         // Inicializa Banco antes de tudo
         try {
             DatabaseConnection.getConnection();
