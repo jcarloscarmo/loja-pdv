@@ -135,7 +135,7 @@ $ mvn clean install
 # 4. Execute a aplicação
 $ mvn javafx:run
 
-Nota: O arquivo `pdv.db` será criado automaticamente na raiz do projeto na primeira execução.
+Nota: O banco `pdv.db` fica em `%APPDATA%/PDVChurrasco` no Windows. Ao abrir uma base existente, o sistema cria um backup `pre-update` antes de aplicar alteracoes de schema e tambem gera backup automatico no encerramento da aplicacao.
 
 Arquivos locais ignorados pelo Git:
 
@@ -144,6 +144,12 @@ Arquivos locais ignorados pelo Git:
 - `pdv.db-wal`
 - `sistema.log`
 ```
+
+Backups automaticos:
+
+- pasta: `%APPDATA%/PDVChurrasco/backups`
+- `pre-update-<versao>.db`: criado antes da migracao da base existente
+- `shutdown-<timestamp>.db`: criado ao encerrar a aplicacao
 
 ## 📦 Gerar instalador Windows
 

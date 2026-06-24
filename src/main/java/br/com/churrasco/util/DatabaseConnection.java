@@ -23,9 +23,13 @@ public class DatabaseConnection {
     private static boolean tabelasVerificadas = false;
 
     public static Connection getConnection() throws SQLException {
+        boolean bancoExistiaAntes = Files.exists(DATABASE_PATH);
         Connection conn = DriverManager.getConnection(URL);
 
         if (!tabelasVerificadas) {
+            if (bancoExistiaAntes) {
+                DatabaseBackupService.createPreUpdateBackupIfNeeded(conn, DATABASE_PATH);
+            }
             try (Statement stmt = conn.createStatement()) {
                 // Otimização
                 stmt.execute("PRAGMA journal_mode=WAL;");

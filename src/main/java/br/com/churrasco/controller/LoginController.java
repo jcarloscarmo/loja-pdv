@@ -5,6 +5,7 @@ import br.com.churrasco.model.Usuario;
 import br.com.churrasco.util.LogUtil;
 import br.com.churrasco.util.Navegacao;
 import br.com.churrasco.util.Sessao;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -75,7 +76,7 @@ public class LoginController {
 
     @FXML
     public void sair() {
-        System.exit(0);
+        Platform.exit();
     }
 
     private void mostrarAlerta(String msg) {
