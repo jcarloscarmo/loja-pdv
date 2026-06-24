@@ -19,6 +19,7 @@ public class PagamentoController {
 
     // Labels de Totais
     @FXML private Label lblSubTotal;      // Valor dos produtos
+    @FXML private Label lblValorPromocao;
     @FXML private Label lblValorDesconto; // Quanto de desconto
     @FXML private Label lblTotalFinal;    // Subtotal - Desconto
     @FXML private Label lblFalta;
@@ -37,6 +38,7 @@ public class PagamentoController {
 
     // Estado da Tela
     private double valorVendaOriginal; // Valor bruto (soma dos itens)
+    private double valorDescontoPromocional = 0.0;
     private double valorDesconto = 0.0;
     private double totalPago = 0.0;
 
@@ -122,7 +124,7 @@ public class PagamentoController {
 
     private void ativarDigitacao(String modo, String tipo, Button btn, String corHex) {
         // Se já pagou tudo, não deixa selecionar pagamento (só deixa desconto pra corrigir)
-        double totalComDesconto = valorVendaOriginal - valorDesconto;
+        double totalComDesconto = valorVendaOriginal - valorDescontoPromocional - valorDesconto;
         if (modo.equals("PAGAMENTO") && totalPago >= (totalComDesconto - 0.01)) {
             btnConcluir.requestFocus();
             return;
@@ -142,7 +144,7 @@ public class PagamentoController {
 
         // Sugestão de valor (Prompt)
         if (modo.equals("PAGAMENTO")) {
-            double falta = (valorVendaOriginal - valorDesconto) - totalPago;
+            double falta = (valorVendaOriginal - valorDescontoPromocional - valorDesconto) - totalPago;
             if (falta > 0) txtValor.setPromptText(String.format("%.2f", falta));
         } else {
             txtValor.setPromptText("0,00");
@@ -163,7 +165,7 @@ public class PagamentoController {
             // Atalho do Enter vazio: Pega o restante automático
             if (texto.isEmpty() || texto.equals("0.00")) {
                 if (modoAtual.equals("PAGAMENTO")) {
-                    valorInput = (valorVendaOriginal - valorDesconto) - totalPago;
+                    valorInput = (valorVendaOriginal - valorDescontoPromocional - valorDesconto) - totalPago;
                 }
             } else {
                 valorInput = Double.parseDouble(texto);
@@ -182,12 +184,13 @@ public class PagamentoController {
 
     private void aplicarDesconto(double valor) {
         // Validação 1: Desconto maior que a venda
-        if (valor > valorVendaOriginal) {
+        double limiteDescontoManual = valorVendaOriginal - valorDescontoPromocional;
+        if (valor > limiteDescontoManual) {
             mostrarAlerta("Desconto inválido", "O desconto não pode ser maior que o valor da venda.");
             return;
         }
         // Validação 2: Desconto impede pagamento já feito
-        if ((valorVendaOriginal - valor) < totalPago) {
+        if ((valorVendaOriginal - valorDescontoPromocional - valor) < totalPago) {
             mostrarAlerta("Atenção", "Já existem pagamentos lançados. O novo total não pode ser menor que o valor já pago.");
             return;
         }
@@ -196,7 +199,7 @@ public class PagamentoController {
         atualizarTotalizadores();
 
         // CORREÇÃO DO FOCO: Se pagou tudo com o desconto, foca no Concluir
-        double totalComDesconto = valorVendaOriginal - valorDesconto;
+        double totalComDesconto = valorVendaOriginal - valorDescontoPromocional - valorDesconto;
         if (totalPago >= (totalComDesconto - 0.01)) {
             txtValor.setText("");
             txtValor.setDisable(true);
@@ -209,7 +212,7 @@ public class PagamentoController {
     }
 
     private void processarPagamento(double valor) {
-        double totalComDesconto = valorVendaOriginal - valorDesconto;
+        double totalComDesconto = valorVendaOriginal - valorDescontoPromocional - valorDesconto;
         double falta = totalComDesconto - totalPago;
 
         // Validação de Cartão (não gera troco)
@@ -238,8 +241,19 @@ public class PagamentoController {
     }
 
     // --- INICIALIZAÇÃO EXTERNA ---
+    public void setDadosTotais(double subtotal, double descontoPromocional) {
+        this.valorVendaOriginal = subtotal;
+        this.valorDescontoPromocional = descontoPromocional;
+        this.valorDesconto = 0.0;
+        this.totalPago = 0.0;
+        listaPagamentos.clear();
+        atualizarTotalizadores();
+        resetarParaEstadoDeEspera();
+    }
+
     public void setValorTotal(double total) {
         this.valorVendaOriginal = total;
+        this.valorDescontoPromocional = 0.0;
         this.valorDesconto = 0.0;
         this.totalPago = 0.0;
         listaPagamentos.clear();
@@ -248,10 +262,13 @@ public class PagamentoController {
     }
 
     private void atualizarTotalizadores() {
-        double totalFinal = valorVendaOriginal - valorDesconto;
+        double totalFinal = valorVendaOriginal - valorDescontoPromocional - valorDesconto;
         double falta = totalFinal - totalPago;
 
         lblSubTotal.setText(String.format("R$ %.2f", valorVendaOriginal));
+        if (lblValorPromocao != null) {
+            lblValorPromocao.setText(String.format("R$ %.2f", valorDescontoPromocional));
+        }
         lblValorDesconto.setText(String.format("R$ %.2f", valorDesconto));
         lblTotalFinal.setText(String.format("R$ %.2f", totalFinal));
 
@@ -275,6 +292,7 @@ public class PagamentoController {
     public boolean isConfirmado() { return confirmado; }
     public ObservableList<Pagamento> getPagamentosRealizados() { return listaPagamentos; }
     public double getValorDesconto() { return valorDesconto; }
+    public double getValorDescontoPromocional() { return valorDescontoPromocional; }
 
     private void mostrarAlerta(String t, String c) {
         Alert alert = new Alert(Alert.AlertType.WARNING);

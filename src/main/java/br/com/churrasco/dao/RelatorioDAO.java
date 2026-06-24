@@ -73,4 +73,38 @@ public class RelatorioDAO {
         }
         return 0.0;
     }
+
+    public double buscarTotalDescontosPromocionaisPorPeriodo(LocalDate inicio, LocalDate fim) {
+        String sql = "SELECT SUM(desconto_promocional) as total_desc FROM vendas WHERE date(data_hora) BETWEEN date(?) AND date(?)";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, inicio.toString());
+            pstmt.setString(2, fim.toString());
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDouble("total_desc");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0.0;
+    }
+
+    public double buscarTotalDescontosManuaisPorPeriodo(LocalDate inicio, LocalDate fim) {
+        String sql = "SELECT SUM(desconto_manual) as total_desc FROM vendas WHERE date(data_hora) BETWEEN date(?) AND date(?)";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, inicio.toString());
+            pstmt.setString(2, fim.toString());
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDouble("total_desc");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0.0;
+    }
 }

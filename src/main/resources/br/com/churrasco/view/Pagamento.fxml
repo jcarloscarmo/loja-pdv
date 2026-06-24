@@ -16,7 +16,11 @@
                 <Label fx:id="lblSubTotal" text="R$ 0,00" textFill="#7f8c8d"><font><Font name="System Bold" size="20"/></font></Label>
             </VBox>
             <VBox alignment="CENTER">
-                <Label text="DESCONTO" textFill="#c0392b"><font><Font size="12"/></font></Label>
+                <Label text="PROMOÇÕES" textFill="#16a085"><font><Font size="12"/></font></Label>
+                <Label fx:id="lblValorPromocao" text="R$ 0,00" textFill="#16a085"><font><Font name="System Bold" size="20"/></font></Label>
+            </VBox>
+            <VBox alignment="CENTER">
+                <Label text="DESCONTO MANUAL" textFill="#c0392b"><font><Font size="12"/></font></Label>
                 <Label fx:id="lblValorDesconto" text="R$ 0,00" textFill="#c0392b"><font><Font name="System Bold" size="20"/></font></Label>
             </VBox>
         </HBox>
@@ -28,7 +32,7 @@
     </VBox>
 
     <VBox spacing="10">
-        <Label text="Escolha a forma de pagamento ou aplique desconto:" style="-fx-font-weight: bold;"/>
+        <Label text="Escolha a forma de pagamento ou aplique desconto manual:" style="-fx-font-weight: bold;"/>
         <GridPane hgap="10" vgap="10">
             <columnConstraints>
                 <ColumnConstraints percentWidth="33"/>

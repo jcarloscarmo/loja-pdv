@@ -89,6 +89,8 @@ Campos principais:
 - `data_hora`
 - `valor_total`
 - `desconto`
+- `desconto_manual`
+- `desconto_promocional`
 - `forma_pagamento`
 - `usuario_id`
 - `caixa_id`
@@ -99,7 +101,9 @@ Uso:
 
 Regras observadas:
 - `valor_total` e o valor liquido, apos desconto
-- `desconto` e guardado separadamente
+- `desconto` segue como total agregado
+- `desconto_manual` representa desconto concedido pelo operador
+- `desconto_promocional` representa desconto automatico por combo
 - `usuario_id` esta sendo salvo com valor fixo `1` no fluxo atual
 - `caixa_id` e associado ao caixa aberto no momento da venda
 
@@ -169,6 +173,53 @@ Chaves reais observadas no codigo:
 Ponto de atencao:
 - `ConfigKeys` nao bate com essas chaves reais
 
+## `promocoes`
+
+Campos principais:
+- `id`
+- `nome`
+- `preco_combo`
+- `data_inicio`
+- `data_fim`
+- `ativo`
+
+Uso:
+- cadastro administrativo de promocoes por combo
+- definicao de vigencia e status de ativacao
+
+Regras observadas:
+- a V1 trabalha apenas com produtos `UN`
+- o preco promocional e armazenado como preco final do combo
+
+## `promocao_itens`
+
+Campos principais:
+- `id`
+- `promocao_id`
+- `produto_id`
+- `quantidade`
+
+Uso:
+- define quais produtos e quantidades formam um combo promocional
+
+Regras observadas:
+- cada item do combo exige uma quantidade inteira
+- a combinacao pode ter um ou varios produtos
+
+## `venda_promocoes`
+
+Campos principais:
+- `id`
+- `venda_id`
+- `promocao_id`
+- `nome_promocao`
+- `quantidade_aplicada`
+- `desconto_aplicado`
+
+Uso:
+- auditoria das promocoes efetivamente aplicadas na venda
+- apoio a cupom e relatorios
+
 ## `encomendas`
 
 Campos principais:
@@ -229,6 +280,10 @@ Relacionamentos observados no uso do sistema:
 - `caixas.usuario_id -> usuarios.id`
 - `itens_encomenda.encomenda_id -> encomendas.id`
 - `itens_encomenda.produto_id -> produtos.id`
+- `promocao_itens.promocao_id -> promocoes.id`
+- `promocao_itens.produto_id -> produtos.id`
+- `venda_promocoes.venda_id -> vendas.id`
+- `venda_promocoes.promocao_id -> promocoes.id`
 
 Observacao:
 - embora algumas FKs estejam declaradas, a efetividade depende do SQLite estar com `foreign_keys` habilitado
@@ -257,6 +312,7 @@ Impacto:
 - insere em `vendas`
 - insere em `itens_venda`
 - insere em `pagamentos_venda`
+- insere em `venda_promocoes` quando houver combos aplicados
 - atualiza `produtos.estoque`
 
 ### Salvar encomenda
@@ -288,7 +344,15 @@ Impacto:
 
 ### Desconto
 - desconto e salvo em `vendas.desconto`
+- desconto manual e salvo em `vendas.desconto_manual`
+- desconto promocional e salvo em `vendas.desconto_promocional`
 - valor liquido continua em `vendas.valor_total`
+
+### Promocoes
+- o sistema calcula promocao ativa sobre o carrinho de produtos `UN`
+- o combo e reconhecido com base em `promocao_itens`
+- o desconto automatico nao altera `preco_venda` do produto
+- o registro detalhado da promocao aplicada vai para `venda_promocoes`
 
 ### Relatorios
 - custo e margem dependem de `itens_venda.custo_unitario`

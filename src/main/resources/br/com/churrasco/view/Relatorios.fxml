@@ -49,6 +49,20 @@
                     </Label>
                 </VBox>
 
+                <VBox style="-fx-background-color: #16a085; -fx-padding: 10; -fx-background-radius: 5; -fx-min-width: 140;">
+                    <Label text="DESC. PROMO" textFill="white" style="-fx-font-size: 12px;"/>
+                    <Label fx:id="lblTotalDescontosPromocionais" text="R$ 0,00" textFill="white">
+                        <font><Font name="System Bold" size="18.0"/></font>
+                    </Label>
+                </VBox>
+
+                <VBox style="-fx-background-color: #d35400; -fx-padding: 10; -fx-background-radius: 5; -fx-min-width: 140;">
+                    <Label text="DESC. MANUAL" textFill="white" style="-fx-font-size: 12px;"/>
+                    <Label fx:id="lblTotalDescontosManuais" text="R$ 0,00" textFill="white">
+                        <font><Font name="System Bold" size="18.0"/></font>
+                    </Label>
+                </VBox>
+
                 <VBox style="-fx-background-color: #27ae60; -fx-padding: 10; -fx-background-radius: 5; -fx-min-width: 150;">
                     <Label text="LUCRO LÍQUIDO" textFill="white" style="-fx-font-size: 12px;"/>
                     <Label fx:id="lblTotalLucro" text="R$ 0,00" textFill="white">

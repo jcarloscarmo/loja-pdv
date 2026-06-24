@@ -94,6 +94,9 @@
                 <font><Font name="System Bold" size="36.0"/></font>
             </Label>
 
+            <Label fx:id="lblResumoPromocoes" text="Nenhuma promoção aplicada" wrapText="true" maxWidth="Infinity"
+                   style="-fx-text-fill: #16a085; -fx-font-size: 12px; -fx-font-weight: bold; -fx-background-color: #e8f8f5; -fx-padding: 8; -fx-background-radius: 5;"/>
+
             <Button fx:id="btnFinalizar" text="FINALIZAR (/)" onAction="#finalizarVenda" maxWidth="Infinity" prefHeight="60"
                     style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold;"/>
         </VBox>

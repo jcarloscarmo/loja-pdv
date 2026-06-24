@@ -28,6 +28,8 @@ public class RelatorioProdutosController {
     @FXML private Label lblLucroPeriodo;
     @FXML private Label lblCustoPeriodo;
     @FXML private Label lblTotalDescontos; // <--- NOVO LABEL
+    @FXML private Label lblTotalDescontosPromocionais;
+    @FXML private Label lblTotalDescontosManuais;
 
     @FXML private TableView<ItemRelatorio> tabela;
     @FXML private TableColumn<ItemRelatorio, String> colCodigo;
@@ -62,6 +64,8 @@ public class RelatorioProdutosController {
 
         // 2. Busca total de descontos (Global)
         double totalDescontos = relatorioDAO.buscarTotalDescontosPorPeriodo(inicio, fim);
+        double totalDescontosPromocionais = relatorioDAO.buscarTotalDescontosPromocionaisPorPeriodo(inicio, fim);
+        double totalDescontosManuais = relatorioDAO.buscarTotalDescontosManuaisPorPeriodo(inicio, fim);
 
         // 3. Cálculos Totais
         double totalFaturamentoBruto = lista.stream().mapToDouble(ItemRelatorio::getValorTotal).sum();
@@ -83,6 +87,8 @@ public class RelatorioProdutosController {
             if (totalDescontos > 0) lblTotalDescontos.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
             else lblTotalDescontos.setStyle("-fx-text-fill: #7f8c8d;");
         }
+        if (lblTotalDescontosPromocionais != null) lblTotalDescontosPromocionais.setText(formatar(totalDescontosPromocionais));
+        if (lblTotalDescontosManuais != null) lblTotalDescontosManuais.setText(formatar(totalDescontosManuais));
 
         lblLucroPeriodo.setText(formatar(lucroLiquidoReal));
     }

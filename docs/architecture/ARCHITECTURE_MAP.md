@@ -59,6 +59,7 @@ Principais:
 - `MenuController`: hub de navegacao e controle visual de permissoes
 - `PDVController`: frente de caixa, carrinho, estoque, pagamento, encomenda, fechamento de caixa e impressao
 - `PagamentoController`: multipagamento, desconto, troco
+- `PromocoesController`: cadastro e gestao de promocoes por combo para produtos `UN`
 - `ConfirmacaoController`: confirmacao e exibicao do cupom
 - `CaixaController`: fechamento de caixa e autorizacao administrativa
 - `ProdutosController`: CRUD de produtos
@@ -79,6 +80,7 @@ Persistencia JDBC direta.
 
 - `UsuarioDAO`: autenticacao, CRUD e validacao de admin
 - `ProdutoDAO`: CRUD de produtos e busca por codigo
+- `PromocaoDAO`: CRUD de promocoes, itens do combo e promocoes aplicadas por venda
 - `VendaDAO`: vendas, pagamentos, itens, encomendas e baixa/restauracao de estoque
 - `CaixaDAO`: abertura, fechamento, caixa aberto e saldo em dinheiro
 - `FinanceiroDAO`: despesas, fluxo mensal e DRE
@@ -95,6 +97,10 @@ Principais:
 - `Produto`
 - `ItemVenda`
 - `Venda`
+- `Promocao`
+- `PromocaoItem`
+- `PromocaoAplicada`
+- `ResultadoPromocao`
 - `Pagamento`
 - `Caixa`
 - `Encomenda`
@@ -107,6 +113,7 @@ Principais:
 
 - `BalancaService`: leitura serial da balanca usando configuracao salva no banco
 - `ImpressoraService`: impressao de cupom e relatorio de fechamento em ESC/POS
+- `PromocaoService`: calcula promocoes ativas sobre o carrinho e retorna desconto promocional e combos aplicados
 
 ### `br.com.churrasco.util`
 
@@ -132,6 +139,7 @@ Principais:
 - `Relatorios.fxml`
 - `RelatorioProdutos.fxml`
 - `Configuracoes.fxml`
+- `Promocoes.fxml`
 - `HistoricoCaixas.fxml`
 - `DetalheCaixa.fxml`
 - `NovaEncomenda.fxml`
@@ -157,14 +165,20 @@ FXMLs com indicio de nao serem o fluxo real atual:
 ### PDV
 - FXML: `PDV.fxml`
 - Controller: `PDVController`
-- DAOs: `ProdutoDAO`, `VendaDAO`, `CaixaDAO`, `UsuarioDAO`
-- Services: `BalancaService`, `ImpressoraService`
+- DAOs: `ProdutoDAO`, `VendaDAO`, `CaixaDAO`, `UsuarioDAO`, `PromocaoDAO`
+- Services: `BalancaService`, `ImpressoraService`, `PromocaoService`
 - Util: `CupomGenerator`, `Sessao`
 
 ### Pagamento
 - FXML: `Pagamento.fxml`
 - Controller: `PagamentoController`
 - Model: `Pagamento`
+
+### Promocoes
+- FXML: `Promocoes.fxml`
+- Controller: `PromocoesController`
+- DAOs: `PromocaoDAO`, `ProdutoDAO`
+- Fluxo: cadastro administrativo de combos promocionais para produtos `UN`
 
 ### Confirmacao
 - FXML: `Confirmacao.fxml`
@@ -219,13 +233,24 @@ FXMLs com indicio de nao serem o fluxo real atual:
 - Validacao de estoque com consideracao do que ja esta no carrinho
 - Carrinho mantido em `ObservableList<ItemVenda>`
 - Total visual recalculado no controller
+- Promocoes por combo para produtos `UN` sao recalculadas sempre que o carrinho muda
+- O PDV exibe desconto promocional separado do desconto manual
 
 ### Payments
 
 - Multipagamento suportado
-- Desconto tratado antes da persistencia
+- Desconto promocional entra automaticamente no total da venda
+- Desconto manual continua disponivel na tela de pagamento
 - Valor liquido salvo em `vendas.valor_total`
 - Pagamentos detalhados salvos em `pagamentos_venda`
+
+### Promotions
+
+- O modulo administrativo cadastra combos com preco fechado e periodo de vigencia
+- Cada promocao possui itens obrigatorios com quantidade por produto `UN`
+- `PromocaoService` identifica quantos combos fecham no carrinho
+- O desconto promocional e persistido separado do desconto manual
+- As promocoes aplicadas ficam registradas em `venda_promocoes`
 
 ### Orders / Encomendas
 
@@ -259,6 +284,7 @@ Regras importantes estao espalhadas nestes pontos:
 - `VendaDAO`
 - `CaixaDAO`
 - `DatabaseConnection`
+- `PromocaoService`
 
 Isso significa que alterar comportamento do negocio exige revisar controller e DAO juntos.
 
@@ -330,6 +356,8 @@ Revise juntos:
 - `PagamentoController`
 - `ConfirmacaoController`
 - `VendaDAO`
+- `PromocaoDAO`
+- `PromocaoService`
 - `ItemVenda`
 - `Venda`
 - `CupomGenerator`

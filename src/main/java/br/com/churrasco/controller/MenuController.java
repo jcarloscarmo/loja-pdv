@@ -32,6 +32,7 @@ public class MenuController {
     @FXML private Button btnRanking;
     @FXML private Button btnAuditoria;
     @FXML private Button btnConfiguracoes;
+    @FXML private Button btnPromocoes;
     // O btnPDV e btnSair não precisam sumir, então não é obrigatório declarar,
     // mas se quiser manipular no futuro, pode declarar também.
 
@@ -49,6 +50,7 @@ public class MenuController {
                 esconderBotao(btnRanking);
                 esconderBotao(btnAuditoria);
                 esconderBotao(btnConfiguracoes);
+                esconderBotao(btnPromocoes);
             }
         }
     }
@@ -89,6 +91,7 @@ public class MenuController {
     @FXML public void abrirRankingProdutos(ActionEvent event) { navegar(event, "/br/com/churrasco/view/RelatorioProdutos.fxml", "Ranking"); }
     @FXML public void abrirHistoricoCaixas(ActionEvent event) { navegar(event, "/br/com/churrasco/view/HistoricoCaixas.fxml", "Auditoria"); }
     @FXML public void abrirConfiguracoes(ActionEvent event) { navegar(event, "/br/com/churrasco/view/Configuracoes.fxml", "Configurações"); }
+    @FXML public void abrirPromocoes(ActionEvent event) { navegar(event, "/br/com/churrasco/view/Promocoes.fxml", "Promoções"); }
 
     private void navegar(ActionEvent event, String fxmlPath, String titulo) {
         try {

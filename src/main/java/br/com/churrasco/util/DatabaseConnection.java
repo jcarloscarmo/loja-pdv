@@ -154,6 +154,8 @@ public class DatabaseConnection {
                   data_hora TEXT,
                   valor_total REAL,
                   desconto REAL DEFAULT 0.0,
+                  desconto_manual REAL DEFAULT 0.0,
+                  desconto_promocional REAL DEFAULT 0.0,
                   forma_pagamento TEXT,
                   usuario_id INTEGER,
                   caixa_id INTEGER,
@@ -165,6 +167,8 @@ public class DatabaseConnection {
             try { stmt.execute("ALTER TABLE vendas ADD COLUMN forma_pagamento TEXT DEFAULT 'MISTO'"); } catch (SQLException e) {}
             try { stmt.execute("ALTER TABLE vendas ADD COLUMN caixa_id INTEGER"); } catch (SQLException e) {}
             try { stmt.execute("ALTER TABLE vendas ADD COLUMN desconto REAL DEFAULT 0.0"); } catch (SQLException e) {}
+            try { stmt.execute("ALTER TABLE vendas ADD COLUMN desconto_manual REAL DEFAULT 0.0"); } catch (SQLException e) {}
+            try { stmt.execute("ALTER TABLE vendas ADD COLUMN desconto_promocional REAL DEFAULT 0.0"); } catch (SQLException e) {}
 
             // 5. ITENS VENDA
             stmt.execute("""
@@ -222,6 +226,42 @@ public class DatabaseConnection {
                     data_pagamento TEXT NOT NULL,
                     categoria TEXT NOT NULL,
                     observacao TEXT
+                );
+            """);
+
+            // 11. PROMOCOES
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS promocoes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT NOT NULL,
+                    preco_combo REAL NOT NULL,
+                    data_inicio TEXT,
+                    data_fim TEXT,
+                    ativo INTEGER NOT NULL DEFAULT 1
+                );
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS promocao_itens (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    promocao_id INTEGER NOT NULL,
+                    produto_id INTEGER NOT NULL,
+                    quantidade INTEGER NOT NULL,
+                    FOREIGN KEY(promocao_id) REFERENCES promocoes(id),
+                    FOREIGN KEY(produto_id) REFERENCES produtos(id)
+                );
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS venda_promocoes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    venda_id INTEGER NOT NULL,
+                    promocao_id INTEGER,
+                    nome_promocao TEXT NOT NULL,
+                    quantidade_aplicada INTEGER NOT NULL DEFAULT 1,
+                    desconto_aplicado REAL NOT NULL DEFAULT 0.0,
+                    FOREIGN KEY(venda_id) REFERENCES vendas(id),
+                    FOREIGN KEY(promocao_id) REFERENCES promocoes(id)
                 );
             """);
 

@@ -1,8 +1,10 @@
 package br.com.churrasco.util;
 
 import br.com.churrasco.dao.ConfigDAO;
+import br.com.churrasco.dao.VendaDAO;
 import br.com.churrasco.model.ItemVenda;
 import br.com.churrasco.model.Pagamento;
+import br.com.churrasco.model.PromocaoAplicada;
 import br.com.churrasco.model.Produto;
 import br.com.churrasco.model.Venda;
 import java.util.ArrayList;
@@ -69,7 +71,9 @@ public class CupomGenerator {
                 venda != null && venda.getDataHora() != null ? venda.getDataHora() : LocalDateTime.now(),
                 itens,
                 pagamentos,
-                venda != null && venda.getValorTotal() != null ? venda.getValorTotal() : 0.0
+                venda != null && venda.getValorTotal() != null ? venda.getValorTotal() : 0.0,
+                venda,
+                venda != null && venda.getId() != null ? new VendaDAO().buscarPromocoesPorVenda(venda.getId()) : List.of()
         );
     }
 
@@ -93,10 +97,10 @@ public class CupomGenerator {
     }
 
     private static String formatarCupom(ConfiguracaoCupom config, Integer idVenda, LocalDateTime dataHora, List<ItemVenda> itens, List<Pagamento> pagamentos, double totalLiquido) {
-        return String.join("\n", gerarLinhas(config, idVenda, dataHora, itens, pagamentos, totalLiquido));
+        return String.join("\n", gerarLinhas(config, idVenda, dataHora, itens, pagamentos, totalLiquido, null, List.of()));
     }
 
-    private static List<String> gerarLinhas(ConfiguracaoCupom config, Integer idVenda, LocalDateTime dataHora, List<ItemVenda> itens, List<Pagamento> pagamentos, double totalLiquido) {
+    private static List<String> gerarLinhas(ConfiguracaoCupom config, Integer idVenda, LocalDateTime dataHora, List<ItemVenda> itens, List<Pagamento> pagamentos, double totalLiquido, Venda venda, List<PromocaoAplicada> promocoesAplicadas) {
         List<String> linhas = new ArrayList<>();
         List<ItemVenda> itensSeguros = itens != null ? itens : List.of();
         List<Pagamento> pagamentosSeguros = pagamentos != null ? pagamentos : List.of();
@@ -133,12 +137,30 @@ public class CupomGenerator {
             linhas.add(separador());
         }
 
+        double descontoPromocional = venda != null && venda.getDescontoPromocional() != null ? venda.getDescontoPromocional() : 0.0;
+        double descontoManual = venda != null && venda.getDescontoManual() != null ? venda.getDescontoManual() : 0.0;
         double desconto = subtotal - totalLiquido;
-        if (desconto > 0.01) {
+        if (desconto > 0.01 || descontoPromocional > 0.01 || descontoManual > 0.01) {
             linhas.add(alinharEsquerdaDireita("SUBTOTAL", formatarValor(subtotal)));
-            linhas.add(alinharEsquerdaDireita("DESCONTO", formatarValor(desconto)));
+            if (descontoPromocional > 0.01) {
+                linhas.add(alinharEsquerdaDireita("DESC. PROMO", formatarValor(descontoPromocional)));
+            }
+            if (descontoManual > 0.01) {
+                linhas.add(alinharEsquerdaDireita("DESC. MANUAL", formatarValor(descontoManual)));
+            }
+            if (descontoPromocional <= 0.01 && descontoManual <= 0.01) {
+                linhas.add(alinharEsquerdaDireita("DESCONTO", formatarValor(desconto)));
+            }
         }
         linhas.add(alinharEsquerdaDireita("TOTAL", formatarValor(totalLiquido)));
+
+        if (promocoesAplicadas != null && !promocoesAplicadas.isEmpty()) {
+            linhas.add(separador());
+            linhas.add("PROMOÇÕES");
+            for (PromocaoAplicada promocaoAplicada : promocoesAplicadas) {
+                linhas.add(cortar(promocaoAplicada.getQuantidadeAplicada() + "x " + promocaoAplicada.getNomePromocao()));
+            }
+        }
 
         if (!pagamentosSeguros.isEmpty()) {
             linhas.add(separador());

@@ -4,6 +4,7 @@ import br.com.churrasco.model.Caixa;
 import br.com.churrasco.model.Encomenda;
 import br.com.churrasco.model.ItemVenda;
 import br.com.churrasco.model.Pagamento;
+import br.com.churrasco.model.PromocaoAplicada;
 import br.com.churrasco.model.Produto;
 import br.com.churrasco.model.Venda;
 import br.com.churrasco.util.DatabaseConnection;
@@ -16,11 +17,11 @@ import java.util.List;
 public class VendaDAO {
 
     private CaixaDAO caixaDAO = new CaixaDAO();
+    private PromocaoDAO promocaoDAO = new PromocaoDAO();
 
     // --- 1. SALVAR VENDA (COM DESCONTO) ---
-    public int salvarVenda(Venda venda, List<ItemVenda> itens, List<Pagamento> pagamentos) throws SQLException {
-        // ATUALIZADO: Incluindo a coluna 'desconto'
-        String sqlVenda = "INSERT INTO vendas (id, data_hora, valor_total, forma_pagamento, usuario_id, caixa_id, desconto) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    public int salvarVenda(Venda venda, List<ItemVenda> itens, List<Pagamento> pagamentos, List<PromocaoAplicada> promocoesAplicadas) throws SQLException {
+        String sqlVenda = "INSERT INTO vendas (id, data_hora, valor_total, forma_pagamento, usuario_id, caixa_id, desconto, desconto_manual, desconto_promocional) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         String sqlItem = "INSERT INTO itens_venda (venda_id, produto_id, quantidade, valor_unitario, total_item, custo_unitario) VALUES (?, ?, ?, ?, ?, ?)";
         String sqlPagamento = "INSERT INTO pagamentos_venda (venda_id, tipo, valor) VALUES (?, ?, ?)";
         String sqlUpdateEstoque = "UPDATE produtos SET estoque = estoque - ? WHERE id = ?";
@@ -52,8 +53,9 @@ public class VendaDAO {
                 pstmtVenda.setString(4, venda.getFormaPagamento());
                 pstmtVenda.setInt(5, 1); // Usuário (pode ajustar depois para pegar da Sessao)
                 pstmtVenda.setInt(6, caixaId);
-                // Salva o desconto (Se for null, salva 0.0)
                 pstmtVenda.setDouble(7, venda.getDesconto() != null ? venda.getDesconto() : 0.0);
+                pstmtVenda.setDouble(8, venda.getDescontoManual() != null ? venda.getDescontoManual() : 0.0);
+                pstmtVenda.setDouble(9, venda.getDescontoPromocional() != null ? venda.getDescontoPromocional() : 0.0);
 
                 pstmtVenda.executeUpdate();
             }
@@ -81,6 +83,10 @@ public class VendaDAO {
                     pstmtPagamento.addBatch();
                 }
                 pstmtPagamento.executeBatch();
+            }
+
+            if (promocoesAplicadas != null && !promocoesAplicadas.isEmpty()) {
+                promocaoDAO.salvarPromocoesAplicadas(conn, vendaIdParaSalvar, promocoesAplicadas);
             }
 
             // D. Baixar Estoque
@@ -323,7 +329,7 @@ public class VendaDAO {
     public List<Venda> buscarVendasDetalhadasPorData(java.time.LocalDate data) {
         String sql = """
             SELECT 
-                v.id, v.data_hora, v.valor_total, v.forma_pagamento, v.desconto,
+                v.id, v.data_hora, v.valor_total, v.forma_pagamento, v.desconto, v.desconto_manual, v.desconto_promocional,
                 (SELECT SUM(i.custo_unitario * i.quantidade) FROM itens_venda i WHERE i.venda_id = v.id) as val_custo,
                 SUM(CASE WHEN p.tipo = 'DINHEIRO' THEN p.valor ELSE 0 END) as val_dinheiro, 
                 SUM(CASE WHEN p.tipo = 'DÉBITO' THEN p.valor ELSE 0 END) as val_debito, 
@@ -353,7 +359,7 @@ public class VendaDAO {
     public List<Venda> buscarVendasDetalhadasPorCaixa(int caixaId) {
         String sql = """
             SELECT 
-                v.id, v.data_hora, v.valor_total, v.forma_pagamento, v.desconto,
+                v.id, v.data_hora, v.valor_total, v.forma_pagamento, v.desconto, v.desconto_manual, v.desconto_promocional,
                 (SELECT SUM(i.custo_unitario * i.quantidade) FROM itens_venda i WHERE i.venda_id = v.id) as val_custo,
                 SUM(CASE WHEN p.tipo = 'DINHEIRO' THEN p.valor ELSE 0 END) as val_dinheiro, 
                 SUM(CASE WHEN p.tipo = 'DÉBITO' THEN p.valor ELSE 0 END) as val_debito, 
@@ -386,8 +392,9 @@ public class VendaDAO {
         v.setValorTotal(rs.getDouble("valor_total"));
         v.setFormaPagamento(rs.getString("forma_pagamento"));
 
-        // Mapeia o desconto (se a coluna existir)
         try { v.setDesconto(rs.getDouble("desconto")); } catch (Exception e) { v.setDesconto(0.0); }
+        try { v.setDescontoManual(rs.getDouble("desconto_manual")); } catch (Exception e) { v.setDescontoManual(0.0); }
+        try { v.setDescontoPromocional(rs.getDouble("desconto_promocional")); } catch (Exception e) { v.setDescontoPromocional(0.0); }
 
         v.setValorDinheiro(rs.getDouble("val_dinheiro"));
         v.setValorDebito(rs.getDouble("val_debito"));
@@ -434,5 +441,9 @@ public class VendaDAO {
             }
         } catch (SQLException e) { e.printStackTrace(); }
         return pagamentos;
+    }
+
+    public List<PromocaoAplicada> buscarPromocoesPorVenda(int vendaId) {
+        return promocaoDAO.buscarPromocoesPorVenda(vendaId);
     }
 }

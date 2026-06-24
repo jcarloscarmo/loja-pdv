@@ -21,18 +21,25 @@ Mapa rapido de telas, controllers, dependencias e riscos de impacto.
 - Fluxos relacionados: navegacao, logout
 - Risco de impacto: medio
 
+### `Promocoes.fxml`
+- Controller: `PromocoesController`
+- Responsabilidade: cadastrar e gerenciar promocoes por combo para produtos `UN`
+- DAOs: `PromocaoDAO`, `ProdutoDAO`
+- Fluxos relacionados: promocao, PDV, relatorios
+- Risco de impacto: alto
+
 ### `PDV.fxml`
 - Controller: `PDVController`
 - Responsabilidade: frente de caixa completa
-- DAOs: `ProdutoDAO`, `VendaDAO`, `CaixaDAO`, `UsuarioDAO`
-- Services: `BalancaService`, `ImpressoraService`
+- DAOs: `ProdutoDAO`, `VendaDAO`, `CaixaDAO`, `UsuarioDAO`, `PromocaoDAO`
+- Services: `BalancaService`, `ImpressoraService`, `PromocaoService`
 - Utils: `CupomGenerator`, `Sessao`
-- Fluxos relacionados: abertura de caixa, venda, pagamento, encomenda, fechamento de caixa
+- Fluxos relacionados: abertura de caixa, venda, pagamento, promocao, encomenda, fechamento de caixa
 - Risco de impacto: muito alto
 
 ### `Pagamento.fxml`
 - Controller: `PagamentoController`
-- Responsabilidade: compor pagamentos, desconto e troco
+- Responsabilidade: compor pagamentos, desconto manual, desconto promocional e troco
 - Models: `Pagamento`
 - Fluxos relacionados: finalizacao de venda
 - Risco de impacto: alto

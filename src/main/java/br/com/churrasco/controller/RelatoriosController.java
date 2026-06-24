@@ -31,6 +31,8 @@ public class RelatoriosController {
     @FXML private Label lblTotalGeral, lblTotalLucro, lblTotalCusto;
     @FXML private Label lblTotalDinheiro, lblTotalPix, lblTotalCartao;
     @FXML private Label lblTotalDescontos;
+    @FXML private Label lblTotalDescontosPromocionais;
+    @FXML private Label lblTotalDescontosManuais;
 
     @FXML private TableView<Venda> tabelaVendas;
     @FXML private TableColumn<Venda, Integer> colId;
@@ -89,6 +91,12 @@ public class RelatoriosController {
         double tDescontos = vendas.stream()
                 .mapToDouble(v -> v.getDesconto() != null ? v.getDesconto() : 0.0)
                 .sum();
+        double tDescontosPromocionais = vendas.stream()
+                .mapToDouble(v -> v.getDescontoPromocional() != null ? v.getDescontoPromocional() : 0.0)
+                .sum();
+        double tDescontosManuais = vendas.stream()
+                .mapToDouble(v -> v.getDescontoManual() != null ? v.getDescontoManual() : 0.0)
+                .sum();
 
         // Custo (Soma direta dos custos unitários registrados)
         double tCusto = vendas.stream()
@@ -112,6 +120,8 @@ public class RelatoriosController {
             if (tDescontos > 0) lblTotalDescontos.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
             else lblTotalDescontos.setStyle("-fx-text-fill: black;");
         }
+        if (lblTotalDescontosPromocionais != null) lblTotalDescontosPromocionais.setText(formatar(tDescontosPromocionais));
+        if (lblTotalDescontosManuais != null) lblTotalDescontosManuais.setText(formatar(tDescontosManuais));
     }
 
     private void configurarTabela() {

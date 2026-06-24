@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="br.com.churrasco.controller.ImpressaoComprovanteController"
+      fx:id="root"
+      alignment="TOP_CENTER" spacing="15"
+      style="-fx-background-color: #fff9c4; -fx-padding: 20; -fx-border-color: #f1c40f; -fx-border-width: 5;"
+      prefWidth="400" prefHeight="260">
+
+    <Label text="COMPROVANTE DA VENDA" textFill="#f39c12">
+        <font><Font name="System Bold" size="20"/></font>
+    </Label>
+
+    <Label fx:id="lblMensagem" text="Venda Nº 0 realizada com sucesso!" textFill="#2c3e50" wrapText="true" alignment="CENTER">
+        <font><Font name="System Bold" size="22"/></font>
+    </Label>
+
+    <Label text="Deseja imprimir o comprovante agora?" textFill="#7f8c8d" />
+
+    <Label text="Pressione 1 para imprimir ou 0 para nao imprimir" textFill="#7f8c8d" style="-fx-font-weight: bold;" />
+
+    <Region VBox.vgrow="ALWAYS" />
+
+    <HBox spacing="12" alignment="CENTER">
+        <Button fx:id="btnNaoImprimir" text="NAO IMPRIMIR (0)" onAction="#naoImprimir"
+                style="-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold;" />
+
+        <Button fx:id="btnImprimir" text="IMPRIMIR (1)" onAction="#imprimir" defaultButton="true"
+                prefWidth="200" prefHeight="50"
+                style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;" />
+    </HBox>
+
+</VBox>

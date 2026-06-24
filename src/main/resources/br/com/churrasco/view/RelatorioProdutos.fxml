@@ -75,6 +75,28 @@
                 <Separator orientation="VERTICAL"/>
 
                 <VBox alignment="CENTER_RIGHT">
+                    <Label text="DESC. PROMO">
+                        <font><Font size="11"/></font>
+                    </Label>
+                    <Label fx:id="lblTotalDescontosPromocionais" text="R$ 0,00" textFill="#16a085">
+                        <font><Font name="System Bold" size="18"/></font>
+                    </Label>
+                </VBox>
+
+                <Separator orientation="VERTICAL"/>
+
+                <VBox alignment="CENTER_RIGHT">
+                    <Label text="DESC. MANUAL">
+                        <font><Font size="11"/></font>
+                    </Label>
+                    <Label fx:id="lblTotalDescontosManuais" text="R$ 0,00" textFill="#d35400">
+                        <font><Font name="System Bold" size="18"/></font>
+                    </Label>
+                </VBox>
+
+                <Separator orientation="VERTICAL"/>
+
+                <VBox alignment="CENTER_RIGHT">
                     <Label text="LUCRO LÍQUIDO REAL">
                         <font><Font size="11"/></font>
                     </Label>

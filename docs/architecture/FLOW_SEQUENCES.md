@@ -40,6 +40,7 @@ Tela central:
 Rotas principais:
 - PDV -> `PDV.fxml`
 - Produtos -> `Produtos.fxml`
+- Promocoes -> `Promocoes.fxml`
 - Fluxo de Caixa -> `FluxoCaixa.fxml`
 - Relatorios diarios -> `Relatorios.fxml`
 - Ranking produtos -> `RelatorioProdutos.fxml`
@@ -69,10 +70,28 @@ Sequencia:
 5. se unidade = `UN`, define quantidade `1` e adiciona direto
 6. `validarEstoque(produto, quantidade)`
 7. adiciona `ItemVenda` ao carrinho
+8. `PromocaoService` recalcula combos promocionais ativos para produtos `UN`
+9. total visual e resumo de promocoes sao atualizados
 
 Regras importantes:
 - a validacao considera o estoque total menos o que ja esta no carrinho
 - em modo de edicao, o item atual e temporariamente desconsiderado do somatorio
+- promocoes da V1 valem apenas para produtos `UN`
+- promocoes sao do tipo combo com preco fechado
+
+## 5.1. Menu -> Promocoes
+
+Sequencia:
+1. usuario admin abre `Promocoes.fxml`
+2. `PromocoesController.initialize()` carrega produtos `UN` e promocoes cadastradas
+3. operador monta o combo escolhendo produtos e quantidades
+4. define o preco final do combo e o periodo de vigencia
+5. `PromocaoDAO.salvar(...)` ou `PromocaoDAO.atualizar(...)`
+
+Regras importantes:
+- a V1 restringe promocao a itens `UN`
+- o preco promocional e cadastrado como preco final do combo
+- o desconto e calculado automaticamente pelo sistema durante a venda
 
 ## 6. PDV -> Leitura da balanca
 
@@ -93,23 +112,25 @@ Pontos de atencao:
 Sequencia:
 1. usuario clica em finalizar
 2. `PagamentoController` e aberto em modal
-3. operador informa formas de pagamento e desconto
+3. operador informa formas de pagamento e, se necessario, desconto manual
 4. `ConfirmacaoController` e aberto em modal
 5. se confirmado, `PDVController.salvarVendaNoBanco(...)`
 6. cria `Venda`
-7. `VendaDAO.salvarVenda(venda, itens, pagamentos)`
-8. dispara impressao em thread separada
+7. `VendaDAO.salvarVenda(venda, itens, pagamentos, promocoesAplicadas)`
+8. sistema pergunta se deve imprimir o comprovante
 9. reseta o PDV
 
 Persistencia da venda:
 1. insere em `vendas`
 2. insere em `itens_venda`
 3. insere em `pagamentos_venda`
-4. baixa estoque em `produtos`
-5. faz `commit`
+4. insere em `venda_promocoes` quando houver combos aplicados
+5. baixa estoque em `produtos`
+6. faz `commit`
 
 Regra importante:
 - `valor_total` salvo em `vendas` ja representa o valor liquido, apos desconto
+- `desconto_manual` e `desconto_promocional` ficam separados em `vendas`
 
 ## 8. PDV -> Encomenda
 
@@ -177,7 +198,7 @@ Sequencia:
 Sequencia:
 1. usuario escolhe data
 2. `VendaDAO.buscarVendasDetalhadasPorData(data)` busca vendas com agregacao de pagamentos e custo
-3. tela calcula totais gerais
+3. tela calcula totais gerais, descontos manuais e descontos promocionais
 4. clique em uma venda abre cupom em modo leitura
 
 Ponto de atencao:
@@ -189,7 +210,9 @@ Sequencia:
 1. usuario escolhe periodo
 2. `RelatorioDAO.buscarVendasPorPeriodo(inicio, fim)` agrega itens por produto
 3. `RelatorioDAO.buscarTotalDescontosPorPeriodo(inicio, fim)` busca descontos totais
-4. tela exibe faturamento, quantidade e lucro por item
+4. `RelatorioDAO.buscarTotalDescontosPromocionaisPorPeriodo(...)` busca descontos promocionais
+5. `RelatorioDAO.buscarTotalDescontosManuaisPorPeriodo(...)` busca descontos manuais
+6. tela exibe faturamento, quantidade e lucro por item
 
 ## 15. Configuracoes
 

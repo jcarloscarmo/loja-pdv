@@ -9,6 +9,7 @@ import br.com.churrasco.dao.VendaDAO;
 import br.com.churrasco.model.*;
 import br.com.churrasco.service.BalancaService;
 import br.com.churrasco.service.ImpressoraService;
+import br.com.churrasco.service.PromocaoService;
 import br.com.churrasco.util.CupomGenerator;
 import br.com.churrasco.util.Sessao;
 import javafx.application.Platform;
@@ -51,6 +52,7 @@ public class PDVController {
     @FXML private Label lblStatusBalanca;
     @FXML private Label lblPreviaValorBalanca;
     @FXML private Label lblTotalVenda;
+    @FXML private Label lblResumoPromocoes;
     @FXML private Label lblProdutoIdentificado;
     @FXML private Label lblNumeroVenda;
     @FXML private Label lblResumoEstoquePdv;
@@ -68,6 +70,7 @@ public class PDVController {
     private final VendaDAO vendaDAO = new VendaDAO();
     private final CaixaDAO caixaDAO = new CaixaDAO();
     private final UsuarioDAO usuarioDAO = new UsuarioDAO(); // Instanciado aqui para uso geral
+    private final PromocaoService promocaoService = new PromocaoService();
 
     private Produto produtoAtual = null;
     private ItemVenda itemEmEdicao = null;
@@ -79,6 +82,7 @@ public class PDVController {
     private final Map<Button, Encomenda> encomendasPorCard = new LinkedHashMap<>();
     private int indiceCardEncomendaFocado = -1;
     private Timeline timelineEncomendas;
+    private ResultadoPromocao resultadoPromocaoAtual = new ResultadoPromocao();
 
     private static final String ESTILO_CARD_ENCOMENDA = "-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 170; -fx-min-height: 68; -fx-background-radius: 5;";
     private static final String ESTILO_CARD_ENCOMENDA_FOCADO = "-fx-background-color: #d35400; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 170; -fx-min-height: 68; -fx-background-radius: 5; -fx-border-color: #f1c40f; -fx-border-width: 3; -fx-border-radius: 5;";
@@ -372,14 +376,15 @@ public class PDVController {
             if (!pagController.isConfirmado()) return;
 
             List<Pagamento> pagamentos = pagController.getPagamentosRealizados();
-            double descontoAplicado = pagController.getValorDesconto();
-            double totalCarrinho = calcularTotalCarrinho();
-            double totalLiquido = totalCarrinho - descontoAplicado;
+            double descontoManual = pagController.getValorDesconto();
+            double descontoPromocional = pagController.getValorDescontoPromocional();
+            double totalCarrinho = calcularSubtotalCarrinho();
+            double totalLiquido = totalCarrinho - descontoPromocional - descontoManual;
 
-            ConfirmacaoController confController = abrirModalConfirmacao(pagamentos, totalLiquido);
+            ConfirmacaoController confController = abrirModalConfirmacao(pagamentos, totalLiquido, descontoManual, descontoPromocional);
             if (!confController.isConfirmado()) return;
 
-            salvarVendaNoBanco(totalLiquido, pagamentos, descontoAplicado);
+            salvarVendaNoBanco(totalLiquido, pagamentos, descontoManual, descontoPromocional, new ArrayList<>(resultadoPromocaoAtual.getPromocoesAplicadas()));
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -387,26 +392,45 @@ public class PDVController {
         }
     }
 
-    private void salvarVendaNoBanco(double totalLiquido, List<Pagamento> pagamentos, double desconto) {
+    private void salvarVendaNoBanco(double totalLiquido, List<Pagamento> pagamentos, double descontoManual, double descontoPromocional, List<PromocaoAplicada> promocoesAplicadas) {
         try {
             Venda venda = new Venda();
             venda.setDataHora(LocalDateTime.now());
             venda.setValorTotal(totalLiquido);
-            venda.setDesconto(desconto);
+            venda.setDescontoManual(descontoManual);
+            venda.setDescontoPromocional(descontoPromocional);
+            venda.setDesconto(descontoManual + descontoPromocional);
             venda.setFormaPagamento(determinarTipoPagamento(pagamentos));
             if (idEncomendaEmAndamento != null) {
                 venda.setId(idEncomendaEmAndamento);
             }
-            int idVendaSalva = vendaDAO.salvarVenda(venda, new ArrayList<>(carrinho), pagamentos);
+            int idVendaSalva = vendaDAO.salvarVenda(venda, new ArrayList<>(carrinho), pagamentos, promocoesAplicadas);
             venda.setId(idVendaSalva);
             List<ItemVenda> itensCopia = new ArrayList<>(carrinho);
             List<Pagamento> pagsCopia = new ArrayList<>(pagamentos);
-            new Thread(() -> impressoraService.imprimirCupom(venda, itensCopia, pagsCopia)).start();
             resetarPDV();
             atualizarResumoEstoquePdv();
-            mostrarAlerta("Venda Nº " + idVendaSalva + " realizada com sucesso!", Alert.AlertType.INFORMATION);
+            perguntarImpressaoComprovante(venda, itensCopia, pagsCopia);
         } catch (Exception e) {
             mostrarAlerta("ERRO AO SALVAR: " + e.getMessage(), Alert.AlertType.ERROR);
+        }
+    }
+
+    private void perguntarImpressaoComprovante(Venda venda, List<ItemVenda> itens, List<Pagamento> pagamentos) {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/br/com/churrasco/view/ImpressaoComprovante.fxml"));
+            Parent root = loader.load();
+            ImpressaoComprovanteController controller = loader.getController();
+            controller.setNumeroVenda(venda.getId());
+
+            Stage stage = criarModalVenda("Impressao do Comprovante", root);
+            stage.showAndWait();
+
+            if (controller.isImprimir()) {
+                new Thread(() -> impressoraService.imprimirCupom(venda, itens, pagamentos)).start();
+            }
+        } catch (IOException e) {
+            mostrarAlerta("Nao foi possivel abrir a janela de impressao: " + e.getMessage(), Alert.AlertType.ERROR);
         }
     }
 
@@ -653,9 +677,14 @@ public class PDVController {
         return false;
     }
 
-    private void resetarPDV() { carrinho.clear(); atualizarTotaisVisualmente(); limparCamposAposInsercao(); idEncomendaEmAndamento = null; atualizarNumeroVenda(); if (lblProdutoIdentificado != null) lblProdutoIdentificado.setText("CAIXA LIVRE"); sairModoEncomendas(); }
+    private void resetarPDV() { carrinho.clear(); resultadoPromocaoAtual = new ResultadoPromocao(); atualizarTotaisVisualmente(); limparCamposAposInsercao(); idEncomendaEmAndamento = null; atualizarNumeroVenda(); if (lblProdutoIdentificado != null) lblProdutoIdentificado.setText("CAIXA LIVRE"); sairModoEncomendas(); }
     private void atualizarNumeroVenda() { try { int id = (idEncomendaEmAndamento != null) ? idEncomendaEmAndamento : vendaDAO.getProximoIdVenda(); if (lblNumeroVenda != null) lblNumeroVenda.setText("VENDA Nº " + id); } catch (Exception e) {} }
-    private void atualizarTotaisVisualmente() { lblTotalVenda.setText(String.format("R$ %.2f", calcularTotalCarrinho())); tabelaItens.refresh(); }
+    private void atualizarTotaisVisualmente() {
+        resultadoPromocaoAtual = promocaoService.calcularPromocoes(carrinho);
+        lblTotalVenda.setText(String.format("R$ %.2f", resultadoPromocaoAtual.getTotalComPromocao()));
+        atualizarResumoPromocoes();
+        tabelaItens.refresh();
+    }
     private void atualizarResumoEstoquePdv() {
         if (lblResumoEstoquePdv == null) return;
 
@@ -868,9 +897,38 @@ public class PDVController {
     private String formatarStatusRetirada(Encomenda encomenda) { if (encomenda.getDataRetirada() == null) return "sem horario"; long minutos = ChronoUnit.MINUTES.between(LocalDateTime.now(), encomenda.getDataRetirada()); if (minutos > 0) return "retira em " + minutos + " min"; return "atrasado ha " + Math.abs(minutos) + " min"; }
     @FXML public void tentarSair() { voltarAoMenu(); }
     private void voltarAoMenu() { try { ((Stage) rootPane.getScene().getWindow()).close(); FXMLLoader loader = new FXMLLoader(getClass().getResource("/br/com/churrasco/view/Menu.fxml")); Parent root = loader.load(); Stage stage = new Stage(); stage.setScene(new Scene(root)); stage.setMaximized(true); stage.setTitle("Menu Principal"); stage.show(); } catch (Exception e) { e.printStackTrace(); } }
-    private PagamentoController abrirModalPagamento() throws IOException { FXMLLoader l = new FXMLLoader(getClass().getResource("/br/com/churrasco/view/Pagamento.fxml")); Parent r = l.load(); PagamentoController c = l.getController(); c.setValorTotal(calcularTotalCarrinho()); Stage s = new Stage(); s.setScene(new Scene(r)); s.initModality(Modality.APPLICATION_MODAL); s.showAndWait(); return c; }
-    private ConfirmacaoController abrirModalConfirmacao(List<Pagamento> pagamentos, double total) throws IOException { FXMLLoader l = new FXMLLoader(getClass().getResource("/br/com/churrasco/view/Confirmacao.fxml")); Parent r = l.load(); ConfirmacaoController c = l.getController(); Venda vendaPreview = new Venda(); vendaPreview.setId(idEncomendaEmAndamento != null ? idEncomendaEmAndamento : vendaDAO.getProximoIdVenda()); vendaPreview.setDataHora(LocalDateTime.now()); vendaPreview.setValorTotal(total); c.setTextoCupom(CupomGenerator.gerarTexto(vendaPreview, carrinho, pagamentos)); Stage s = new Stage(); s.setScene(new Scene(r)); s.initModality(Modality.APPLICATION_MODAL); s.showAndWait(); return c; }
+    private Stage criarModalVenda(String titulo, Parent root) {
+        Stage stage = new Stage();
+        stage.setTitle(titulo);
+        stage.setScene(new Scene(root));
+        stage.initModality(Modality.APPLICATION_MODAL);
+        if (rootPane.getScene() != null) {
+            stage.initOwner(rootPane.getScene().getWindow());
+        }
+        stage.setResizable(false);
+        stage.centerOnScreen();
+        return stage;
+    }
+    private void atualizarResumoPromocoes() {
+        if (lblResumoPromocoes == null) {
+            return;
+        }
+
+        if (resultadoPromocaoAtual == null || resultadoPromocaoAtual.getPromocoesAplicadas() == null || resultadoPromocaoAtual.getPromocoesAplicadas().isEmpty()) {
+            lblResumoPromocoes.setText("Nenhuma promoção aplicada");
+            return;
+        }
+
+        String resumo = resultadoPromocaoAtual.getPromocoesAplicadas().stream()
+                .map(promocao -> promocao.getQuantidadeAplicada() + "x " + promocao.getNomePromocao() + " (-" + String.format("R$ %.2f", promocao.getDescontoAplicado()) + ")")
+                .reduce((a, b) -> a + " | " + b)
+                .orElse("Nenhuma promoção aplicada");
+
+        lblResumoPromocoes.setText(resumo + "\nDesconto promocional: " + String.format("R$ %.2f", resultadoPromocaoAtual.getDescontoPromocional()));
+    }
+    private PagamentoController abrirModalPagamento() throws IOException { FXMLLoader l = new FXMLLoader(getClass().getResource("/br/com/churrasco/view/Pagamento.fxml")); Parent r = l.load(); PagamentoController c = l.getController(); c.setDadosTotais(calcularSubtotalCarrinho(), resultadoPromocaoAtual != null ? resultadoPromocaoAtual.getDescontoPromocional() : 0.0); Stage s = criarModalVenda("Pagamento", r); s.showAndWait(); return c; }
+    private ConfirmacaoController abrirModalConfirmacao(List<Pagamento> pagamentos, double total, double descontoManual, double descontoPromocional) throws IOException { FXMLLoader l = new FXMLLoader(getClass().getResource("/br/com/churrasco/view/Confirmacao.fxml")); Parent r = l.load(); ConfirmacaoController c = l.getController(); Venda vendaPreview = new Venda(); vendaPreview.setId(idEncomendaEmAndamento != null ? idEncomendaEmAndamento : vendaDAO.getProximoIdVenda()); vendaPreview.setDataHora(LocalDateTime.now()); vendaPreview.setValorTotal(total); vendaPreview.setDescontoManual(descontoManual); vendaPreview.setDescontoPromocional(descontoPromocional); vendaPreview.setDesconto(descontoManual + descontoPromocional); c.setTextoCupom(CupomGenerator.gerarTexto(vendaPreview, carrinho, pagamentos)); Stage s = criarModalVenda("Confirmacao da Venda", r); s.showAndWait(); return c; }
     private String determinarTipoPagamento(List<Pagamento> pagamentos) { if (pagamentos == null || pagamentos.isEmpty()) return "DESCONHECIDO"; return pagamentos.size() == 1 ? pagamentos.get(0).getTipo() : "MISTO"; }
-    private double calcularTotalCarrinho() { return carrinho.stream().mapToDouble(ItemVenda::getTotalItem).sum(); }
+    private double calcularSubtotalCarrinho() { return carrinho.stream().mapToDouble(ItemVenda::getTotalItem).sum(); }
     private void mostrarAlerta(String msg, Alert.AlertType type) { Alert alert = new Alert(type); alert.setContentText(msg); alert.showAndWait(); }
 }
