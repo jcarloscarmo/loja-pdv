@@ -41,5 +41,8 @@ build/
 ### VS Code ###
 .vscode/
 
+### Output / Build artifacts ###
+output_folder/
+
 ### Mac OS ###
 .DS_Store
