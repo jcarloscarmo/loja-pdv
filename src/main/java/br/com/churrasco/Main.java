@@ -36,6 +36,13 @@ public class Main extends Application {
 
         primaryStage.setScene(new Scene(root));
         primaryStage.centerOnScreen(); // Centraliza no monitor
+        
+        // Intercepta fechamento da tela de login (Alt+F4 ou barra de tarefas)
+        primaryStage.setOnCloseRequest(ev -> {
+            ev.consume();
+            br.com.churrasco.controller.LoginController.executarBackupEFechar();
+        });
+        
         primaryStage.show();
     }
 }

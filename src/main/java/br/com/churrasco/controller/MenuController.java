@@ -53,6 +53,17 @@ public class MenuController {
                 esconderBotao(btnPromocoes);
             }
         }
+        
+        // Garante que o botão X (Fechar) do Windows no Menu acione o backup!
+        javafx.application.Platform.runLater(() -> {
+            if (lblUsuarioLogado != null && lblUsuarioLogado.getScene() != null) {
+                Stage stage = (Stage) lblUsuarioLogado.getScene().getWindow();
+                stage.setOnCloseRequest(ev -> {
+                    ev.consume();
+                    br.com.churrasco.controller.LoginController.executarBackupEFechar();
+                });
+            }
+        });
     }
 
     // Método auxiliar para sumir com o botão (Visual e Espaço)

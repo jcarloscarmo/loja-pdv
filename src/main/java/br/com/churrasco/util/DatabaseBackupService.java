@@ -27,6 +27,7 @@ public final class DatabaseBackupService {
     private static final int MAX_SHUTDOWN_BACKUPS = 10;
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static volatile boolean shutdownHookRegistered = false;
+    private static volatile boolean backupConcluidoViaUI = false;
 
     private DatabaseBackupService() {
     }
@@ -75,7 +76,20 @@ public final class DatabaseBackupService {
         }
     }
 
+    public static void createBackupViaUI(Path databasePath) throws SQLException, IOException {
+        createShutdownBackup(databasePath, true);
+        backupConcluidoViaUI = true;
+    }
+
     public static void createShutdownBackup(Path databasePath) throws SQLException, IOException {
+        createShutdownBackup(databasePath, false);
+    }
+
+    private static void createShutdownBackup(Path databasePath, boolean force) throws SQLException, IOException {
+        if (!force && backupConcluidoViaUI) {
+            return;
+        }
+
         if (databasePath == null || !Files.exists(databasePath)) {
             return;
         }
@@ -95,6 +109,28 @@ public final class DatabaseBackupService {
         Files.deleteIfExists(backupPath);
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("VACUUM INTO '" + escapeSqlLiteral(backupPath.toAbsolutePath().toString()) + "'");
+        }
+
+        // 1. Verificação de tamanho (não pode ser vazio)
+        if (Files.size(backupPath) == 0) {
+            Files.deleteIfExists(backupPath);
+            throw new SQLException("Falha no backup: O arquivo gerado possui 0 bytes.");
+        }
+
+        // 2. Verificação de integridade estrutural do banco gerado
+        try (Connection connBackup = DriverManager.getConnection("jdbc:sqlite:" + backupPath.toAbsolutePath());
+             Statement stmtBackup = connBackup.createStatement();
+             java.sql.ResultSet rs = stmtBackup.executeQuery("PRAGMA integrity_check;")) {
+            
+            if (rs.next()) {
+                String result = rs.getString(1);
+                if (!"ok".equalsIgnoreCase(result)) {
+                    Files.deleteIfExists(backupPath);
+                    throw new SQLException("Falha na integridade do backup: " + result);
+                }
+            } else {
+                throw new SQLException("Falha ao verificar integridade: Nenhuma resposta retornada.");
+            }
         }
     }
 
