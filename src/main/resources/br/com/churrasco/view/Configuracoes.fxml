@@ -135,6 +135,18 @@
                 </SplitPane>
             </Tab>
 
+            <Tab text="Backup e Restauração">
+                <VBox alignment="CENTER" spacing="20" style="-fx-padding: 40;">
+                    <Label text="Gerenciamento de Segurança" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+                    <VBox alignment="CENTER" spacing="15" style="-fx-padding: 20;">
+                        <Label text="Selecione um backup disponível para restaurar:" style="-fx-font-size: 14px;"/>
+                        <ComboBox fx:id="comboBackups" prefWidth="350" promptText="Carregando backups..."/>
+                        <Label text="ATENÇÃO: A restauração apagará todos os dados lançados após a data do backup." style="-fx-font-size: 13px; -fx-text-fill: #c0392b; -fx-font-weight: bold;"/>
+                        <Button text="RESTAURAR BACKUP SELECIONADO" onAction="#restaurarBackupSelecionado" style="-fx-background-color: #c0392b; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 10 20; -fx-cursor: hand;"/>
+                    </VBox>
+                </VBox>
+            </Tab>
+
         </TabPane>
     </center>
 

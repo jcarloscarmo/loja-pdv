@@ -81,6 +81,57 @@ public final class DatabaseBackupService {
         backupConcluidoViaUI = true;
     }
 
+    public static List<Path> listarBackups(Path databasePath) throws IOException {
+        Path backupDir = ensureBackupDirectory(databasePath);
+        if (!Files.exists(backupDir)) return new ArrayList<>();
+
+        List<Path> backups = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(backupDir, SHUTDOWN_PREFIX + "*" + BACKUP_EXTENSION)) {
+            for (Path backup : stream) {
+                backups.add(backup);
+            }
+        }
+
+        // Os mais recentes primeiro
+        backups.sort(Comparator.comparing(Path::getFileName).reversed());
+        return backups;
+    }
+
+    public static void restaurarBackup(Path backupFile, Path databasePath) throws IOException {
+        if (backupFile == null || !Files.exists(backupFile)) {
+            throw new IOException("Arquivo de backup não encontrado.");
+        }
+
+        // 1. Tenta restaurar via comando nativo do SQLite JDBC (evita file lock do Windows)
+        boolean restauradoViaSql = false;
+        try (java.sql.Connection conn = DatabaseConnection.getConnection();
+             java.sql.Statement stmt = conn.createStatement()) {
+            
+            // O comando 'restore from' é uma extensão do driver sqlite-jdbc que substitui o banco online!
+            stmt.executeUpdate("restore from '" + backupFile.toAbsolutePath().toString().replace("\\", "/") + "'");
+            restauradoViaSql = true;
+            LogUtil.registrar("SISTEMA", "Restore realizado via SQL (sqlite-jdbc).");
+            
+        } catch (Exception e) {
+            LogUtil.registrarErro("Restore SQL falhou, tentando sobrescrita manual", e);
+        }
+
+        // 2. Fallback: Se o driver não suportar ou der erro, tentamos sobrescrever na marra
+        if (!restauradoViaSql) {
+            // Força o Garbage Collector pra tentar limpar Conexões perdidas que causam o Lock no Windows
+            System.gc();
+            try { Thread.sleep(500); } catch (InterruptedException ignore) {}
+
+            Files.copy(backupFile, databasePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+            Path walFile = databasePath.resolveSibling(databasePath.getFileName().toString() + "-wal");
+            Path shmFile = databasePath.resolveSibling(databasePath.getFileName().toString() + "-shm");
+
+            Files.deleteIfExists(walFile);
+            Files.deleteIfExists(shmFile);
+        }
+    }
+
     public static void createShutdownBackup(Path databasePath) throws SQLException, IOException {
         createShutdownBackup(databasePath, false);
     }

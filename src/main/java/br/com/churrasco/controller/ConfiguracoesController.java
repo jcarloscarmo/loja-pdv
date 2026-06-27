@@ -54,10 +54,12 @@ public class ConfiguracoesController {
     @FXML private TableColumn<Usuario, String> colPerfil;
 
     @FXML private Label lblStatus;
+    @FXML private ComboBox<String> comboBackups;
 
     private final ConfigDAO configDAO = new ConfigDAO();
     private final UsuarioDAO usuarioDAO = new UsuarioDAO();
     private Usuario usuarioEmEdicao = null;
+    private java.util.List<java.nio.file.Path> listaBackupsEncontrados = new java.util.ArrayList<>();
 
     @FXML
     public void initialize() {
@@ -77,6 +79,9 @@ public class ConfiguracoesController {
 
         try { configurarMascaras(); }
         catch (Exception e) { LogUtil.registrarErro("Erro ao aplicar mascaras", e); }
+        
+        try { carregarListaBackups(); }
+        catch (Exception e) { LogUtil.registrarErro("Erro ao buscar lista de backups", e); }
 
         LogUtil.registrar("SISTEMA", "Tela de Configurações aberta.");
     }
@@ -141,6 +146,70 @@ public class ConfiguracoesController {
         } catch (Exception e) {
             LogUtil.registrarErro("Erro ao salvar", e);
             mostrarAlerta("Erro", "Falha ao salvar: " + e.getMessage());
+        }
+    }
+
+    private void carregarListaBackups() {
+        try {
+            listaBackupsEncontrados = br.com.churrasco.util.DatabaseBackupService.listarBackups(br.com.churrasco.util.DatabaseConnection.getDatabasePath());
+            comboBackups.getItems().clear();
+            
+            if (listaBackupsEncontrados != null && !listaBackupsEncontrados.isEmpty()) {
+                for (java.nio.file.Path backup : listaBackupsEncontrados) {
+                    String nome = backup.getFileName().toString();
+                    String dataStr = nome.replace("shutdown-", "").replace(".db", "");
+                    if (dataStr.length() >= 15) {
+                        String dataFormatada = dataStr.substring(6, 8) + "/" + dataStr.substring(4, 6) + "/" + dataStr.substring(0, 4) +
+                                               " às " + dataStr.substring(9, 11) + ":" + dataStr.substring(11, 13);
+                        comboBackups.getItems().add(dataFormatada);
+                    } else {
+                        comboBackups.getItems().add(nome);
+                    }
+                }
+                comboBackups.getSelectionModel().selectFirst();
+            } else {
+                comboBackups.setPromptText("Nenhum backup encontrado.");
+            }
+        } catch (Exception e) {
+            comboBackups.setPromptText("Erro ao ler backups.");
+            e.printStackTrace();
+        }
+    }
+
+    @FXML
+    public void restaurarBackupSelecionado() {
+        int selectedIndex = comboBackups.getSelectionModel().getSelectedIndex();
+        if (selectedIndex < 0 || listaBackupsEncontrados == null || selectedIndex >= listaBackupsEncontrados.size()) {
+            mostrarAlerta("Aviso", "Nenhum backup selecionado ou disponível para restaurar.");
+            return;
+        }
+        
+        java.nio.file.Path backupEscolhido = listaBackupsEncontrados.get(selectedIndex);
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Confirmação Crítica");
+        alert.setHeaderText("ATENÇÃO: RISCO DE PERDA DE DADOS");
+        alert.setContentText("Você está prestes a restaurar o banco de dados para o estado do dia " + comboBackups.getValue() + ".\n\n" +
+                             "TODAS AS VENDAS E ALTERAÇÕES feitas após essa data serão PERDIDAS PARA SEMPRE.\n\n" +
+                             "Você tem certeza absoluta que deseja continuar?");
+        alert.getDialogPane().setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
+        
+        if (alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
+            try {
+                br.com.churrasco.util.DatabaseBackupService.restaurarBackup(backupEscolhido, br.com.churrasco.util.DatabaseConnection.getDatabasePath());
+                
+                Alert sucesso = new Alert(Alert.AlertType.INFORMATION);
+                sucesso.setTitle("Restauração Concluída");
+                sucesso.setHeaderText("O sistema precisa ser reiniciado.");
+                sucesso.setContentText("O banco de dados foi restaurado com sucesso.\nO aplicativo será encerrado agora para carregar os novos dados.\nPor favor, abra o programa novamente.");
+                sucesso.getDialogPane().setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
+                sucesso.showAndWait();
+                
+                System.exit(0);
+            } catch (Exception e) {
+                br.com.churrasco.util.LogUtil.registrarErro("Falha ao restaurar backup", e);
+                mostrarAlerta("Erro Crítico", "Não foi possível restaurar o backup:\n" + e.getMessage());
+            }
         }
     }
 
@@ -258,5 +327,5 @@ public class ConfiguracoesController {
     @FXML public void excluirUsuario() { Usuario u = tabelaUsuarios.getSelectionModel().getSelectedItem(); if (u != null) { try { usuarioDAO.excluir(u.getId()); limparFormUsuario(); carregarListaUsuarios(); } catch(Exception e){ LogUtil.registrarErro("Erro excluir user", e); mostrarAlerta("Erro", e.getMessage()); } } }
     @FXML public void limparFormUsuario() { usuarioEmEdicao = null; txtUsuarioNome.clear(); txtUsuarioSenha.clear(); tabelaUsuarios.getSelectionModel().clearSelection(); }
     @FXML public void voltarMenu(ActionEvent event) { try { Navegacao.trocarTela(event, "/br/com/churrasco/view/Menu.fxml", "Tiãozinho's Grill - Menu"); } catch(Exception e) { LogUtil.registrarErro("Erro menu", e); } }
-    private void mostrarAlerta(String t, String m) { Alert a = new Alert(Alert.AlertType.INFORMATION); a.setTitle(t); a.setContentText(m); a.showAndWait(); }
+    private void mostrarAlerta(String t, String m) { Alert a = new Alert(Alert.AlertType.INFORMATION); a.setTitle(t); a.setContentText(m); a.getDialogPane().setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE); a.showAndWait(); }
 }
