@@ -49,13 +49,22 @@ public class MenuController {
         }
 
         new Thread(() -> {
-            br.com.churrasco.util.UpdateService.checkUpdate().ifPresent(info -> {
+            br.com.churrasco.util.UpdateService.checkUpdate().ifPresentOrElse(info -> {
+                // Tem atualização
                 javafx.application.Platform.runLater(() -> {
                     updateDisponivel = info;
                     if (btnUpdate != null) {
                         btnUpdate.setText("🚀 Atualização " + info.version + " Disponível (Baixar)");
                         btnUpdate.setVisible(true);
                         btnUpdate.setManaged(true);
+                    }
+                });
+            }, () -> {
+                // NÃO tem atualização (é a mesma versão)
+                javafx.application.Platform.runLater(() -> {
+                    if (lblVersaoSistema != null) {
+                        String current = System.getProperty("pdvchurrasco.app.version", "Dev");
+                        lblVersaoSistema.setText("Versão: " + current + " (Sistema atualizado ✨)");
                     }
                 });
             });
