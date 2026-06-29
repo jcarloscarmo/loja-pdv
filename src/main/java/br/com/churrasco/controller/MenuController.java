@@ -16,6 +16,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
+import javafx.scene.layout.Region;
 import javafx.stage.Stage;
 
 import java.io.PrintWriter;
@@ -24,6 +26,10 @@ import java.io.StringWriter;
 public class MenuController {
 
     @FXML private Label lblUsuarioLogado;
+    @FXML private Label lblVersaoSistema;
+    @FXML private Button btnUpdate;
+    
+    private br.com.churrasco.util.UpdateService.UpdateInfo updateDisponivel;
 
     // --- BOTÕES DO MENU (PRECISAMOS DELES PARA OCULTAR) ---
     @FXML private Button btnFinanceiro;
@@ -38,6 +44,23 @@ public class MenuController {
 
     @FXML
     public void initialize() {
+        if (lblVersaoSistema != null) {
+            lblVersaoSistema.setText("Versão: " + System.getProperty("pdvchurrasco.app.version", "Dev"));
+        }
+
+        new Thread(() -> {
+            br.com.churrasco.util.UpdateService.checkUpdate().ifPresent(info -> {
+                javafx.application.Platform.runLater(() -> {
+                    updateDisponivel = info;
+                    if (btnUpdate != null) {
+                        btnUpdate.setText("🚀 Atualização " + info.version + " Disponível (Baixar)");
+                        btnUpdate.setVisible(true);
+                        btnUpdate.setManaged(true);
+                    }
+                });
+            });
+        }).start();
+
         if (Sessao.getUsuario() != null) {
             lblUsuarioLogado.setText("Usuário: " + Sessao.getUsuario().getNome());
 
@@ -72,6 +95,43 @@ public class MenuController {
             btn.setVisible(false); // Fica invisível
             btn.setManaged(false); // Não ocupa espaço no layout (os outros botões sobem)
         }
+    }
+
+    @FXML
+    public void baixarAtualizacao() {
+        if (updateDisponivel == null) return;
+        
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Atualizando Sistema");
+        alert.setHeaderText("Baixando nova versão: " + updateDisponivel.version);
+        
+        javafx.scene.control.ProgressBar pBar = new javafx.scene.control.ProgressBar(0);
+        pBar.setPrefWidth(300);
+        Label lblStatus = new Label("Conectando ao servidor...");
+        
+        VBox vbox = new VBox(10, lblStatus, pBar);
+        alert.getDialogPane().setContent(vbox);
+        alert.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
+        
+        javafx.concurrent.Task<java.nio.file.Path> downloadTask = br.com.churrasco.util.UpdateService.createDownloadTask(updateDisponivel);
+        
+        pBar.progressProperty().bind(downloadTask.progressProperty());
+        lblStatus.textProperty().bind(downloadTask.messageProperty());
+        
+        downloadTask.setOnSucceeded(e -> {
+            alert.setResult(ButtonType.OK);
+            alert.close();
+            br.com.churrasco.util.UpdateService.installAndExit(downloadTask.getValue());
+        });
+        
+        downloadTask.setOnFailed(e -> {
+            alert.setResult(ButtonType.CANCEL);
+            alert.close();
+            mostrarErroDetalhado("Falha ao baixar atualização", (Exception) downloadTask.getException());
+        });
+        
+        new Thread(downloadTask).start();
+        alert.showAndWait();
     }
 
     @FXML

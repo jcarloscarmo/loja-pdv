@@ -179,6 +179,23 @@ Observacoes:
 - ao abrir a nova versao, o sistema recria o atalho da area de trabalho como `PDVChurrasco v<versao>` e remove atalhos versionados antigos
 - o script usa `JAVA_HOME` quando disponivel e, se necessario, tenta localizar `jpackage.exe` em `C:\Program Files\Java`
 
+## 🚀 Atualização Automática (OTA)
+
+O sistema possui um mecanismo Over-The-Air (OTA) que verifica por novas atualizações automaticamente no momento da abertura.
+
+Ele consulta a **API Pública do GitHub Releases** do repositório configurado (`jcarloscarmo/loja-pdv`).
+
+**Como funciona:**
+1. A versão da máquina local (injetada via `-Dpdvchurrasco.app.version` pelo instalador MSI) é comparada com a tag da última *Release* do GitHub.
+2. Se houver divergência, o botão `🚀 Atualização Disponível` aparece.
+3. Ao clicar, o próprio Java baixa o arquivo `.msi` da Release.
+4. Após o download, o sistema encerra a si mesmo e roda o instalador de forma silenciosa (parâmetro `/passive`).
+5. Por utilizar o mesmo `UpgradeUuid`, o Windows substitui a aplicação nativamente sem perda dos dados do SQLite.
+
+Para lançar uma nova versão:
+- Gere o novo `.msi` com o script de build.
+- Crie uma *Release* nova no GitHub e anexe o arquivo `.msi`. O sistema cuidará do resto.
+
 ## 👨‍💻 Autor
 
 <div align="center"> <img style="border-radius: 50%;" src="https://github.com/jcarloscarmo.png" width="100px;" alt="Foto de Perfil José Carlos"/> <br /> <sub><b>José Carlos</b></sub> <br /> <br />
